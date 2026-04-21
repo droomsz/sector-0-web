@@ -4,104 +4,70 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ShieldAlert, ArrowRight, Globe, Zap, Wallet, Send, Shield, MessageSquare, Sun, Moon, UserPlus, Circle, TrendingUp, UserMinus, Search, Plus, Check, X, Laptop, Calendar, Edit3 } from 'lucide-react'
+import { Wallet, Send, Shield, MessageSquare, Sun, Moon, UserPlus, Circle, TrendingUp, UserMinus, Zap, Search, Plus, Check, X, ArrowRight, ShieldAlert, Globe, Edit3 } from 'lucide-react'
 
 export default function Home() {
-  const [debugLog, setDebugLog] = useState<string[]>([])
-  const [theme, setTheme] = useState('light')
   const [user, setUser] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
-  const [activeTab, setActiveTab] = useState('chat')
   const [loading, setLoading] = useState(true)
   const [viewDossier, setViewDossier] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
+  const [activeTab, setActiveTab] = useState('chat')
+  const [theme, setTheme] = useState('light')
 
-  // Función para añadir mensajes al chivato
-  const addLog = (msg: string) => setDebugLog(prev => [...prev.slice(-4), `${new Date().toLocaleTimeString()}: ${msg}`])
-
+  // --- 1. IMÁN DE SESIÓN (EL ARREGLO) ---
   useEffect(() => {
-    const root = window.document.documentElement;
-    const initialTheme = localStorage.getItem('s0-theme') || 'light';
-    setTheme(initialTheme);
-    root.classList.toggle('dark', initialTheme === 'dark');
+    // 1. Aplicar tema
+    const initialTheme = localStorage.getItem('s0-theme') || 'light'
+    setTheme(initialTheme)
+    document.documentElement.classList.toggle('dark', initialTheme === 'dark')
 
-    // TEST DE VARIABLES
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) addLog("❌ ERROR: URL de Supabase NO detectada en Vercel")
-    else addLog("✅ URL de Supabase detectada")
-
-    // ESCÁNER DE SESIÓN
-    const checkSession = async () => {
-      addLog("Buscando sesión...")
-      const { data: { session }, error } = await supabase.auth.getSession()
-      if (error) addLog(`❌ Error sesión: ${error.message}`)
+    // 2. Función para capturar la sesión
+    const getInitialSession = async () => {
+      setLoading(true)
+      // Forzamos a Supabase a mirar la URL por si hay un token (#access_token)
+      const { data: { session } } = await supabase.auth.getSession()
       if (session) {
-        addLog(`✅ Sesión detectada para: ${session.user.email}`)
         setUser(session.user)
-        loadData()
-      } else {
-        addLog("ℹ️ No hay sesión activa")
+        await loadData(session.user)
       }
+      setLoading(false)
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      addLog(`🔔 Evento Auth: ${event}`)
-      if (session) setUser(session.user)
-      else setUser(null)
-      loadData()
+    // 3. Vigilante de eventos (Captura el SIGNED_IN cuando Google vuelve)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        setUser(session.user)
+        await loadData(session.user)
+        setLoading(false)
+      } else {
+        setUser(null)
+        setProfile(null)
+        setLoading(false)
+      }
     })
 
-    checkSession()
+    getInitialSession()
     return () => subscription.unsubscribe()
   }, [])
 
-  // (Mantenemos loadData y el resto de funciones igual que antes...)
-  const [myClan, setMyClan] = useState<any>(null)
-  const [clanMembers, setClanMembers] = useState<any[]>([]) 
-  const [onlineUsers, setOnlineUsers] = useState<any[]>([])
-  const [availableClans, setAvailableClans] = useState<any[]>([])
-  const [clanSearchQuery, setClanSearchQuery] = useState('')
-  const [newClanName, setNewClanName] = useState('')
-  const [depositAmount, setDepositAmount] = useState('')
+  // (Mantenemos loadData y los estados que ya tenías)
   const [generalMessages, setGeneralMessages] = useState<any[]>([])
-  const [selectedUser, setSelectedUser] = useState<any>(null)
-  const [messageInput, setMessageInput] = useState('')
-  const [chatMessages, setChatMessages] = useState<any[]>([])
-  const [searchUserQuery, setSearchUserQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [onlineUsers, setOnlineUsers] = useState<any[]>([])
   const [form, setForm] = useState({ mcName: '', amount: '', concept: '' })
-  const [editForm, setEditForm] = useState({ nick: '', color: '#ffffff' })
   const [regColor, setRegColor] = useState('#ff6600')
 
-  const loadData = useCallback(async () => {
-    const { data: { user: u } } = await supabase.auth.getUser()
-    if (u) {
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', u.id).maybeSingle()
-      setProfile(prof)
-    }
-    setLoading(false)
-  }, [])
-
-  const sendGeneralMessage = async () => {
-    if (!messageInput.trim()) return
-    await supabase.from('general_messages').insert({ user_id: user.id, content: messageInput })
-    setMessageInput('')
+  const loadData = async (currUser: any) => {
+    if (!currUser) return
+    const { data: prof } = await supabase.from('profiles').select('*').eq('id', currUser.id).maybeSingle()
+    setProfile(prof)
   }
 
   // --- RENDER ---
-  return (
-    <div className="min-h-screen bg-white dark:bg-black text-current font-sans">
-      
-      {/* 🚨 CAJA DE DEBUG (EL CHIVATO) */}
-      <div className="fixed top-0 left-0 right-0 z-[1000] bg-red-600 text-white p-2 text-[10px] font-mono flex flex-col gap-1 border-b-2 border-black">
-        <p className="font-black uppercase border-b border-white/20 pb-1">Diagnóstico de Red (Sector 0 Debug):</p>
-        {debugLog.map((log, i) => <p key={i}>&gt; {log}</p>)}
-        <p className="opacity-50">URL actual: {typeof window !== 'undefined' ? window.location.href : 'loading...'}</p>
-      </div>
+  if (loading) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-current text-[10px] uppercase tracking-[1em]">Validando_Acceso_Red...</div>
 
-      {/* RESTO DE LA WEB (DOSSIER / DASHBOARD) */}
-      {!user ? (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center pt-20">
-             <AnimatePresence mode="wait">
+  if (!user) return (
+    <div className="fixed inset-0 z-[500] bg-white dark:bg-black flex items-center justify-center">
+      <AnimatePresence mode="wait">
         {!viewDossier ? (
           <motion.div key="inv" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center p-10 max-w-2xl text-current">
             <h1 className="text-[10px] font-black tracking-[0.5em] uppercase opacity-40 mb-6">Invitación de Red</h1>
@@ -109,24 +75,21 @@ export default function Home() {
             <button onClick={() => setViewDossier(true)} className="px-12 py-6 border-2 border-current font-black text-xs uppercase hover:bg-orange-600 hover:text-white flex items-center gap-4 mx-auto">Leer Dossier <ArrowRight size={16}/></button>
           </motion.div>
         ) : (
-          <motion.div key="dos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[999] flex items-center justify-center p-6 bg-white dark:bg-black overflow-y-auto">
+          <motion.div key="dos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[999] flex items-center justify-center p-6 bg-white dark:bg-black">
             <div className="max-w-4xl w-full border-2 border-current p-16 shadow-[20px_20px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black text-current text-left">
               <h3 className="text-5xl font-black italic uppercase text-orange-600 mb-10">Dossier: Sector 0</h3>
-              <div className="space-y-8 font-bold text-xs uppercase border-l-4 border-orange-600 pl-8">
-                <p>— SERVIDOR TÉCNICO EN DESARROLLO</p>
-                <p>— GESTIÓN DE ACTIVOS CORPORATIVOS</p>
-                <p>— OPERATIVO TRAS EXÁMENES FINALES</p>
+              <div className="space-y-8 font-bold text-xs uppercase border-l-4 border-orange-600 pl-8 mb-12">
+                <p>— SISTEMA OPERATIVO TÉCNICO</p>
+                <p>— GESTIÓN DE CAPITAL CORPORATIVO</p>
+                <p>— ACCESO RESTRINGIDO A AGENTES</p>
               </div>
-              <div className="mt-12 flex gap-6">
+              <div className="flex gap-6">
                 <button 
-                  onClick={() => {
-                    addLog("Iniciando login Google...")
-                    supabase.auth.signInWithOAuth({ 
-                        provider: 'google', 
-                        options: { redirectTo: window.location.origin } 
-                    })
-                  }} 
-                  className="px-12 py-6 bg-orange-600 text-white font-black text-xs uppercase"
+                  onClick={() => supabase.auth.signInWithOAuth({ 
+                    provider: 'google', 
+                    options: { redirectTo: window.location.origin } 
+                  })} 
+                  className="px-12 py-6 bg-orange-600 text-white font-black text-xs uppercase hover:bg-black"
                 >
                   Entrar con Google
                 </button>
@@ -136,14 +99,34 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
-        </div>
-      ) : (
-        <div className="pt-24 p-8">
-          <h1 className="text-4xl font-black italic uppercase">Bienvenido, @{profile?.minecraft_name || 'Agente'}</h1>
-          <p className="mt-4 opacity-50 uppercase text-[10px] font-bold">Has roto el bucle. El sistema es operativo.</p>
-          <button onClick={() => supabase.auth.signOut()} className="mt-8 px-4 py-2 border-2 border-red-600 text-red-600 font-bold uppercase text-[10px]">Cerrar Sesión</button>
-        </div>
-      )}
+    </div>
+  )
+
+  // --- REGISTRO NICK ---
+  if (!profile || !profile.minecraft_name) return (
+    <div className="fixed inset-0 z-[400] bg-white dark:bg-black flex items-center justify-center p-6 text-current">
+      <div className="text-center space-y-8 max-w-sm w-full">
+        <h2 className="text-3xl font-black italic uppercase">Vincular Nodo</h2>
+        <form onSubmit={async (e:any) => { 
+          e.preventDefault(); 
+          await supabase.from('profiles').upsert({ id: user.id, minecraft_name: e.target.nick.value, balance: 0, name_color: regColor });
+          window.location.reload();
+        }} className="space-y-6">
+          <input name="nick" required placeholder="TU_NICK_MINECRAFT" className="input-sharp text-center w-full uppercase border-2 border-current bg-transparent p-4" />
+          <div className="text-left"><p className="text-[10px] font-black uppercase opacity-40 mb-2">Color de Red</p>
+          <input type="color" value={regColor} onChange={e => setRegColor(e.target.value)} className="w-full h-12 bg-transparent border-2 border-current p-1 cursor-pointer" /></div>
+          <button type="submit" className="w-full py-6 bg-black text-white font-black text-xs uppercase hover:bg-orange-600">Inicializar</button>
+        </form>
+      </div>
+    </div>
+  )
+
+  // --- DASHBOARD (Simplificado para que pruebes si entras) ---
+  return (
+    <div className="p-10 bg-white dark:bg-black min-h-screen text-current">
+      <h1 className="text-6xl font-black italic uppercase">Bienvenido a la Red, {profile.minecraft_name}</h1>
+      <p className="mt-4 opacity-50 uppercase font-bold tracking-widest text-xs">Sesión Activa // Sector 0 Operativo</p>
+      <button onClick={() => supabase.auth.signOut()} className="mt-10 px-6 py-3 border-2 border-red-600 text-red-600 font-black uppercase text-[10px] hover:bg-red-600 hover:text-white transition-all">Desconectar Sistema</button>
     </div>
   )
 }
