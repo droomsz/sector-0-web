@@ -1,6 +1,6 @@
 'use client'
 
-// ESTA LÍNEA ES EL SEGURO DE VIDA PARA VERCEL
+// SEGURO DE VIDA PARA VERCEL
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -43,7 +43,7 @@ export default function Home() {
   const [editForm, setEditForm] = useState({ nick: '', color: '#ffffff' })
   const [regColor, setRegColor] = useState('#ff6600')
 
-  // --- 1. LÓGICA DE TEMA (MODO OSCURO FIX) ---
+  // --- 1. LÓGICA DE TEMA (MODO OSCURO) ---
   useEffect(() => {
     const root = window.document.documentElement;
     const initialTheme = localStorage.getItem('s0-theme') || 'light';
@@ -58,7 +58,7 @@ export default function Home() {
     window.document.documentElement.classList.toggle('dark', newTheme === 'dark');
   };
 
-  // --- 2. CARGA DE DATOS CENTRAL (OPTIMIZADA) ---
+  // --- 2. CARGA DE DATOS ---
   const loadData = useCallback(async () => {
     const { data: { user: u } } = await supabase.auth.getUser()
     if (!u) { setUser(null); setLoading(false); return; }
@@ -165,7 +165,7 @@ export default function Home() {
 
   if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-current text-[10px] uppercase tracking-[1em]">Cargando_Protocolo...</div>
 
-  // --- 4. LANDING PAGE (DOSSIER INDUSTRIAL) ---
+  // --- 4. LANDING PAGE (BLINDADA) ---
   if (!user) return (
     <div className="fixed inset-0 z-[500] bg-white dark:bg-black flex items-center justify-center overflow-hidden">
       <AnimatePresence mode="wait">
@@ -176,29 +176,20 @@ export default function Home() {
             <button onClick={() => setViewDossier(true)} className="px-12 py-6 border-2 border-current font-black text-xs uppercase tracking-widest hover:bg-orange-600 hover:text-white transition-all flex items-center gap-4 mx-auto">Leer Dossier <ArrowRight size={16}/></button>
           </motion.div>
         ) : (
-          <motion.div key="dos" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="fixed inset-0 z-[600] w-full h-full flex items-center justify-center p-6 bg-white dark:bg-black overflow-y-auto">
+          <motion.div key="dos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[600] w-full h-full flex items-center justify-center p-6 bg-white dark:bg-black overflow-y-auto">
             <div className="max-w-4xl w-full border-2 border-current p-8 md:p-16 shadow-[20px_20px_0px_0px_rgba(234,88,12,1)] my-auto bg-white dark:bg-black text-current text-left">
               <div className="flex justify-between items-center mb-10 border-b-2 border-current pb-6">
                 <h3 className="text-3xl md:text-5xl font-black italic uppercase text-orange-600">Dossier: Sector 0</h3>
                 <ShieldAlert size={32} className="opacity-20" />
               </div>
               <div className="space-y-8 font-bold text-[11px] md:text-xs uppercase leading-relaxed border-l-4 border-orange-600 pl-8">
-                <section className="space-y-2">
-                  <p className="text-orange-600">— EL SERVIDOR (MINECRAFT)</p>
-                  <p className="opacity-70">Entorno técnico de Minecraft enfocado en economía avanzada. Arena de poder corporativo.</p>
-                </section>
-                <section className="space-y-2">
-                  <p className="text-orange-600">— PLATAFORMA WEB</p>
-                  <p className="opacity-70">Núcleo de mando en desarrollo real. Gestiona Bizum, facciones bancarias y ranking directamente.</p>
-                </section>
-                <section className="space-y-2">
-                  <p className="text-orange-600">— DESPLIEGUE FINAL</p>
-                  <p className="opacity-70">La red iniciará su fase operativa inmediatamente tras los exámenes finales. Prepárate.</p>
-                </section>
+                <section><p className="text-orange-600">— SERVIDOR MINECRAFT</p><p className="opacity-70">Entorno técnico enfocado en economía avanzada y control de activos corporativos.</p></section>
+                <section><p className="text-orange-600">— PLATAFORMA WEB</p><p className="opacity-70">Núcleo de mando centralizado para Bizum, gestión bancaria de facciones y ranking en tiempo real.</p></section>
+                <section><p className="text-orange-600">— DESPLIEGUE</p><p className="opacity-70">La fase operativa se activará inmediatamente tras finalizar los exámenes finales. Prepárate.</p></section>
               </div>
               <div className="mt-12 flex flex-col md:flex-row gap-6">
                 <button onClick={() => supabase.auth.signInWithOAuth({ provider: 'google' })} className="px-12 py-6 bg-orange-600 text-white font-black text-xs uppercase hover:bg-black transition-all">Confirmar y Entrar</button>
-                <button onClick={() => setViewDossier(false)} className="text-[10px] font-black uppercase opacity-40">Volver Atrás</button>
+                <button onClick={() => setViewDossier(false)} className="text-[10px] font-black uppercase opacity-40">Volver</button>
               </div>
             </div>
           </motion.div>
@@ -207,23 +198,23 @@ export default function Home() {
     </div>
   )
 
-  // --- 5. REGISTRO IDENTIDAD ---
+  // --- 5. REGISTRO ---
   if (!profile || !profile.minecraft_name) return (
     <div className="fixed inset-0 z-[400] bg-white dark:bg-black flex items-center justify-center p-6 text-current">
       <div className="text-center space-y-8 max-w-sm w-full">
         <UserPlus size={48} className="mx-auto text-orange-600" />
-        <h2 className="text-3xl font-black italic uppercase">Configurar Nodo</h2>
+        <h2 className="text-3xl font-black italic uppercase">Sincronizar Nodo</h2>
         <form onSubmit={async (e:any) => { 
           e.preventDefault(); 
           const { error } = await supabase.from('profiles').upsert({ id: user.id, minecraft_name: e.target.nick.value, balance: 0, name_color: regColor });
           if (!error) loadData(); else alert(error.message);
         }} className="space-y-6">
-          <input name="nick" required placeholder="NICK_MINECRAFT" className="input-sharp text-center w-full uppercase border-2 border-current bg-transparent p-4" />
+          <input name="nick" required placeholder="TU_NICK_MINECRAFT" className="input-sharp text-center w-full uppercase border-2 border-current bg-transparent p-4" />
           <div className="space-y-2 text-left">
-            <p className="text-[10px] font-black uppercase opacity-40">Color de Identidad</p>
+            <p className="text-[10px] font-black uppercase opacity-40">Color de Red</p>
             <input type="color" value={regColor} onChange={e => setRegColor(e.target.value)} className="w-full h-12 cursor-pointer bg-transparent border-2 border-current p-1" />
           </div>
-          <button type="submit" className="w-full py-6 bg-black text-white font-black text-xs uppercase hover:bg-orange-600 transition-all">Vincular</button>
+          <button type="submit" className="w-full py-6 bg-black text-white font-black text-xs uppercase hover:bg-orange-600 transition-all">Inicializar</button>
         </form>
       </div>
     </div>
@@ -231,13 +222,13 @@ export default function Home() {
 
   const myRole = clanMembers.find(m => m.profiles.id === user?.id)?.role;
 
-  // --- 6. DASHBOARD TOTAL ---
+  // --- 6. DASHBOARD ---
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="central-vault bg-white dark:bg-black text-current">
       {showEditModal && (
         <div className="fixed inset-0 z-[600] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6 text-current">
           <div className="bg-white dark:bg-black border-2 border-current p-10 w-full max-w-sm space-y-8">
-            <h3 className="text-2xl font-black italic uppercase text-orange-600">Editar Perfil</h3>
+            <h3 className="text-2xl font-black italic uppercase text-orange-600">Editar Identidad</h3>
             <form onSubmit={handleUpdateProfile} className="space-y-6">
               <input value={editForm.nick} onChange={e => setEditForm({...editForm, nick: e.target.value})} className="input-sharp w-full uppercase" />
               <input type="color" value={editForm.color} onChange={e => setEditForm({...editForm, color: e.target.value})} className="w-full h-12 cursor-pointer bg-transparent border-2 border-current p-1" />
@@ -266,7 +257,7 @@ export default function Home() {
             <p className="text-[10px] font-black uppercase" style={{ color: profile?.name_color }}>@{profile?.minecraft_name}</p>
             <button onClick={() => setShowEditModal(true)} className="p-1 hover:text-orange-600"><Edit3 size={12}/></button>
           </div>
-          <button onClick={() => supabase.auth.signOut().then(() => window.location.reload())} className="text-[9px] font-bold text-red-600 uppercase">Salir</button>
+          <button onClick={() => supabase.auth.signOut().then(() => window.location.reload())} className="text-[9px] font-bold text-red-600 uppercase">Desconectar</button>
         </div>
       </aside>
 
@@ -274,7 +265,7 @@ export default function Home() {
         <AnimatePresence mode="wait">
           {activeTab === 'chat' && (
             <motion.div key="chat" className="flex-1 flex flex-col h-full border-2 border-current bg-current/[0.01]">
-              <div className="p-4 border-b-2 border-current bg-current/5 flex justify-between items-center"><span className="text-[10px] font-black uppercase tracking-widest text-current">Chat_Global</span><Globe size={14} className="text-orange-600 animate-pulse" /></div>
+              <div className="p-4 border-b-2 border-current bg-current/5 flex justify-between items-center"><span className="text-[10px] font-black uppercase tracking-widest text-current">Frecuencia_Abierta</span><Globe size={14} className="text-orange-600 animate-pulse" /></div>
               <div className="flex-1 p-6 overflow-y-auto space-y-4 no-scrollbar">
                 {generalMessages.map((m, i) => (
                   <div key={i} className="flex flex-col gap-1">
@@ -292,8 +283,8 @@ export default function Home() {
 
           {activeTab === 'overview' && (
             <motion.div key="ov" className="flex-1 flex flex-col items-center justify-center text-center">
-              <div className="w-full max-w-2xl p-20 border-2 border-current">
-                <p className="text-[10px] font-black opacity-30 uppercase mb-10 text-current">Capital_Disponible</p>
+              <div className="w-full max-w-2xl p-20 border-2 border-current text-current">
+                <p className="text-[10px] font-black opacity-30 uppercase mb-10 text-current">Activos_Disponibles</p>
                 <h2 className="text-9xl font-black tracking-tighter text-current"><span className="text-orange-600 text-4xl align-top mr-2">$</span>{profile?.balance?.toLocaleString() || 0}</h2>
               </div>
             </motion.div>
@@ -304,19 +295,19 @@ export default function Home() {
               {myClan ? (
                 <div className="space-y-10">
                   <div className="p-12 border-2 border-current text-center relative">
-                    <p className="text-[10px] font-black opacity-30 uppercase mb-4">Fondos de {myClan.name}</p>
+                    <p className="text-[10px] font-black opacity-30 uppercase mb-4">Capital de {myClan.name}</p>
                     <h2 className="text-8xl font-black text-orange-600">${myClan.balance?.toLocaleString()}</h2>
                     <button onClick={leaveClan} className="mt-8 text-[9px] font-black text-red-500 border border-red-500 px-4 py-2 uppercase hover:bg-red-500 hover:text-white transition-all">Abandonar</button>
                   </div>
                   <div className="p-8 border-2 border-current bg-current/[0.02]">
                     <form onSubmit={handleClanDeposit} className="flex gap-4">
-                      <input required type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="APORTAR..." className="input-sharp flex-1 text-current" />
+                      <input required type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="APORTAR..." className="input-sharp flex-1 text-current bg-transparent border-2 border-current p-2" />
                       <button className="px-8 bg-black text-white font-black text-[10px] uppercase">Ingresar</button>
                     </form>
                   </div>
                   <div className="border-2 border-current divide-y divide-current/10">
                     {clanMembers.map(m => (
-                      <div key={m.profiles.id} className="p-4 flex justify-between items-center">
+                      <div key={m.profiles.id} className="p-4 flex justify-between items-center text-current">
                         <div><p className="text-xs font-black uppercase" style={{color: m.profiles.name_color}}>@{m.profiles.minecraft_name}</p><p className="text-[9px] font-bold opacity-30 uppercase">{m.role}</p></div>
                         {m.profiles.id !== user?.id && (myRole === 'leader' || myRole === 'co-leader') && (
                           <div className="flex gap-2">
@@ -337,12 +328,12 @@ export default function Home() {
                       <button onClick={() => { supabase.from('clans').select('*').ilike('name', `%${clanSearchQuery}%`).then(({data}) => setAvailableClans(data || [])) }} className="p-4 bg-current text-white"><Search size={18} /></button>
                     </div>
                     {availableClans.map(c => (
-                      <div key={c.id} className="p-4 border border-current/10 flex justify-between items-center"><span className="font-black text-xs uppercase">{c.name}</span><button onClick={() => { supabase.from('clan_members').insert({ clan_id: c.id, user_id: user.id, status: 'pending', role: 'member' }).then(() => alert("Enviada.")) }} className="text-[9px] font-black border border-current px-3 py-1">UNIRSE</button></div>
+                      <div key={c.id} className="p-4 border border-current/10 flex justify-between items-center"><span className="font-black text-xs uppercase">{c.name}</span><button onClick={() => { supabase.from('clan_members').insert({ clan_id: c.id, user_id: user.id, status: 'pending', role: 'member' }).then(() => alert("Solicitud enviada.")) }} className="text-[9px] font-black border border-current px-3 py-1">UNIRSE</button></div>
                     ))}
                   </div>
                   <div className="space-y-6">
                     <h3 className="text-xs font-display italic opacity-40">Fundar</h3>
-                    <input placeholder="NOMBRE..." className="input-sharp w-full" value={newClanName} onChange={e => setNewClanName(e.target.value)} />
+                    <input placeholder="NOMBRE DE FACCION..." className="input-sharp w-full border-2 border-current bg-transparent p-4" value={newClanName} onChange={e => setNewClanName(e.target.value)} />
                     <button onClick={createClan} className="w-full py-6 bg-black text-white font-black text-[10px] uppercase hover:bg-orange-600 transition-all">REGISTRAR</button>
                   </div>
                 </div>
@@ -354,8 +345,8 @@ export default function Home() {
             <motion.div key="tr" className="max-w-lg mx-auto py-4 w-full text-current">
               <h2 className="text-6xl font-black italic text-center mb-10 uppercase">Orden_Assets</h2>
               <form onSubmit={handleTransfer} className="space-y-8 border-2 border-current p-12 bg-current/[0.02]">
-                <input required placeholder="NICK_RECEPTOR" value={form.mcName} onChange={e => setForm({...form, mcName: e.target.value})} className="input-sharp w-full uppercase" />
-                <input required type="number" placeholder="CANTIDAD" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="input-sharp w-full !text-6xl !font-black" />
+                <input required placeholder="NICK_RECEPTOR" value={form.mcName} onChange={e => setForm({...form, mcName: e.target.value})} className="input-sharp w-full uppercase bg-transparent border-2 border-current p-4" />
+                <input required type="number" placeholder="CANTIDAD" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="input-sharp w-full !text-6xl !font-black bg-transparent border-2 border-current p-4" />
                 <button className="w-full py-8 bg-black text-white font-black text-xs uppercase hover:bg-orange-600 transition-colors">AUTORIZAR BIZUM</button>
               </form>
             </motion.div>
@@ -364,7 +355,7 @@ export default function Home() {
           {activeTab === 'messages' && (
             <motion.div key="ms" className="h-full flex gap-8 text-current">
               <div className="w-64 space-y-6">
-                <div className="flex border-2 border-current"><input placeholder="BUSCAR..." className="flex-1 p-3 bg-transparent text-[10px] outline-none text-current" value={searchUserQuery} onChange={setSearchUserQuery} /><button onClick={() => { supabase.from('profiles').select('*').ilike('minecraft_name', `%${searchUserQuery}%`).limit(5).then(({data}) => setSearchResults(data || [])) }} className="p-3 bg-current text-white"><Search size={14}/></button></div>
+                <div className="flex border-2 border-current"><input placeholder="BUSCAR..." className="flex-1 p-3 bg-transparent text-[10px] outline-none text-current" value={searchUserQuery} onChange={(e) => setSearchUserQuery(e.target.value)} /><button onClick={() => { supabase.from('profiles').select('*').ilike('minecraft_name', `%${searchUserQuery}%`).limit(5).then(({data}) => setSearchResults(data || [])) }} className="p-3 bg-current text-white"><Search size={14}/></button></div>
                 {searchResults.map(p => (
                   <button key={p.id} onClick={() => openPrivateChat(p)} className={`w-full p-4 border border-current/10 text-left ${selectedUser?.id === p.id ? 'bg-orange-600 text-white border-orange-600' : ''}`}><p className="text-[10px] font-black uppercase">@{p.minecraft_name}</p></button>
                 ))}
@@ -379,7 +370,7 @@ export default function Home() {
                       ))}
                     </div>
                   </>
-                ) : <div className="flex-1 flex items-center justify-center opacity-10 uppercase font-black text-xs">Selecciona contacto</div>}
+                ) : <div className="flex-1 flex items-center justify-center opacity-10 uppercase font-black text-xs">Seleccionar contacto</div>}
               </div>
             </motion.div>
           )}
@@ -387,7 +378,7 @@ export default function Home() {
       </main>
 
       <aside className="sidebar-right text-current">
-        <div className="p-6 border-b-2 border-current bg-current/5 flex justify-between items-center text-current"><p className="text-[10px] font-black uppercase tracking-widest">Ranking_Net</p><Zap size={12} className="text-orange-600" /></div>
+        <div className="p-6 border-b-2 border-current bg-current/5 flex justify-between items-center text-current"><p className="text-[10px] font-black uppercase tracking-widest text-current">Ranking_Net</p><Zap size={12} className="text-orange-600" /></div>
         <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar text-current">
           {onlineUsers.map((u, i) => {
             const isOnline = (new Date().getTime() - new Date(u.last_seen_web).getTime()) < 60000;
