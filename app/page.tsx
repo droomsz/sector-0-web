@@ -59,18 +59,24 @@ export default function Home() {
 
   const toggleTheme = () => setTheme(prev => (prev === 'light' ? 'dark' : 'light'))
 
-  // --- 2. LOGICA DE DATOS ---
+  // --- 2. LOGICA DE DATOS (FIXED BUILD ERROR) ---
   const loadData = useCallback(async (currUser: any) => {
     if (!currUser) return;
     const { data: prof } = await supabase.from('profiles').select('*').eq('id', currUser.id).maybeSingle()
     setProfile(prof)
     
     if (prof?.minecraft_name) {
-      // Cargar Clan
       const { data: mem } = await supabase.from('clan_members').select('role, clans(*)').eq('user_id', currUser.id).eq('status', 'accepted').maybeSingle()
+      
       if (mem?.clans) {
-        setMyClan(mem.clans);
-        const { data: mbs } = await supabase.from('clan_members').select('status, role, profiles(id, minecraft_name, name_color)').eq('clan_id', mem.clans.id)
+        // CORRECCIÓN: Manejar si clans es objeto o array para evitar el error .id
+        const clanData = Array.isArray(mem.clans) ? mem.clans[0] : mem.clans;
+        setMyClan(clanData);
+        
+        const { data: mbs } = await supabase.from('clan_members')
+          .select('status, role, profiles(id, minecraft_name, name_color)')
+          .eq('clan_id', clanData.id)
+        
         if (mbs) setClanMembers(mbs.filter((m: any) => m.status === 'accepted'))
       }
     }
@@ -85,8 +91,8 @@ export default function Home() {
     setGeneralMessages((msgs || []).reverse())
   }, [])
 
-  // --- MENSAJES PRIVADOS ---
   const fetchPrivateMessages = useCallback(async (targetId: string) => {
+    if (!user) return
     const { data } = await supabase.from('private_messages')
       .select('*, sender:profiles!sender_id(minecraft_name)')
       .or(`and(sender_id.eq.${user.id},receiver_id.eq.${targetId}),and(sender_id.eq.${targetId},receiver_id.eq.${user.id})`)
@@ -95,7 +101,7 @@ export default function Home() {
   }, [user])
 
   const sendPrivateMessage = async () => {
-    if (!privateInput.trim() || !selectedUser) return
+    if (!privateInput.trim() || !selectedUser || !user) return
     await supabase.from('private_messages').insert({ sender_id: user.id, receiver_id: selectedUser.id, content: privateInput })
     setPrivateInput('')
     fetchPrivateMessages(selectedUser.id)
@@ -123,13 +129,13 @@ export default function Home() {
   }
 
   const sendGeneralMessage = async () => {
-    if (!messageInput.trim()) return
+    if (!messageInput.trim() || !user) return
     await supabase.from('general_messages').insert({ user_id: user.id, content: messageInput })
     setMessageInput(''); fetchGlobal()
   }
 
   const createClan = async () => {
-    if (!newClanName.trim()) return
+    if (!newClanName.trim() || !user) return
     const { data: clan, error } = await supabase.from('clans').insert({ name: newClanName.trim(), owner_id: user.id }).select().single()
     if (clan) {
       await supabase.from('clan_members').insert({ clan_id: clan.id, user_id: user.id, status: 'accepted', role: 'leader' })
@@ -138,20 +144,28 @@ export default function Home() {
   }
 
   const joinClan = async (clanId: string) => {
+    if (!user) return
     const { error } = await supabase.from('clan_members').insert({ clan_id: clanId, user_id: user.id, status: 'pending', role: 'member' })
-    if (!error) alert("Solicitud enviada al líder del clan.")
-    else alert("Ya has solicitado unirte o ya eres miembro.")
+    if (!error) alert("Solicitud enviada al líder.")
+    else alert("Error en la solicitud.")
   }
 
-  if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-black dark:text-white text-[10px] uppercase tracking-[1em]">Sincronizando...</div>
+  const handleTransfer = async (e: any) => {
+    e.preventDefault(); setLoading(true)
+    const { error } = await supabase.rpc('transfer_by_minecraft', { target_name: form.mcName, amount_to_send: parseFloat(form.amount), sender_id: user.id, transfer_concept: form.concept })
+    if (error) alert(error.message); else { loadData(user); setActiveTab('overview'); setForm({ mcName: '', amount: '', concept: '' }); }
+    setLoading(false)
+  }
+
+  if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-black dark:text-white text-[10px] uppercase tracking-[1em]">Renderizando_Terminal...</div>
 
   if (!user) return (
     <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center p-4 transition-colors duration-300">
       <AnimatePresence mode="wait">
         {!viewDossier ? (
-          <motion.div key="inv" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center p-8 md:p-12 w-full max-w-md border-4 border-black dark:border-white shadow-[15px_15px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black">
-            <h1 className="text-5xl md:text-6xl font-black italic uppercase mb-2 text-black dark:text-white leading-none">SECTOR <span className="text-orange-600">0</span></h1>
-            <p className="text-[9px] font-black uppercase tracking-[0.4em] mb-10 text-black/40 dark:text-white/40">Terminal_Acceso_Red</p>
+          <motion.div key="inv" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center p-8 md:p-12 w-full max-w-md border-4 border-black dark:border-white shadow-[15px_15px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black text-black dark:text-white">
+            <h1 className="text-5xl md:text-6xl font-black italic uppercase mb-2 leading-none">SECTOR <span className="text-orange-600">0</span></h1>
+            <p className="text-[9px] font-black uppercase tracking-[0.4em] mb-10 opacity-40">Identidad_Red_V45</p>
             <form onSubmit={handleAuth} className="space-y-4 mb-10">
               <input type="email" placeholder="EMAIL" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs outline-none focus:border-orange-600 text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20" value={email} onChange={(e) => setEmail(e.target.value)} required />
               <input type="password" placeholder="PASSWORD" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs outline-none focus:border-orange-600 text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20" value={password} onChange={(e) => setPassword(e.target.value)} required />
@@ -164,14 +178,14 @@ export default function Home() {
               <button onClick={() => setIsRegistering(!isRegistering)} className="text-[11px] font-black uppercase text-orange-600 dark:text-orange-500 hover:scale-105 transition-all">
                 {isRegistering ? '[ VOLVER AL LOGIN ]' : '[ SOLICITAR NUEVO ACCESO ]'}
               </button>
-              <button onClick={() => setViewDossier(true)} className="text-[10px] font-black uppercase text-black/30 dark:text-white/30 hover:text-orange-600 transition-all flex items-center gap-2 mx-auto">Dossier <ArrowRight size={12}/></button>
+              <button onClick={() => setViewDossier(true)} className="text-[10px] font-black uppercase opacity-30 hover:opacity-100 flex items-center gap-2 mx-auto">Dossier <ArrowRight size={12}/></button>
             </div>
           </motion.div>
         ) : (
           <motion.div key="dos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-white dark:bg-black">
             <div className="max-w-4xl w-full border-4 border-black dark:border-white p-8 md:p-16 shadow-[20px_20px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black text-black dark:text-white">
-              <h3 className="text-3xl md:text-5xl font-black italic uppercase text-orange-600 mb-8 border-b-2 border-black dark:border-white pb-6 text-left leading-none">Dossier: Sector 0</h3>
-              <p className="font-bold text-[10px] md:text-xs uppercase border-l-4 border-orange-600 pl-8 mb-12 opacity-80 leading-relaxed text-left text-black dark:text-white">— SERVIDOR TÉCNICO: ECONOMÍA Y CONTROL.<br/>— NÚCLEO WEB: BIZUM Y CLANES.<br/>— STATUS: OPERATIVO.</p>
+              <h3 className="text-3xl md:text-5xl font-black italic uppercase text-orange-600 mb-8 border-b-2 border-black dark:border-white pb-6 text-left leading-none">Dossier_Sector_0</h3>
+              <p className="font-bold text-[10px] md:text-xs uppercase border-l-4 border-orange-600 pl-8 mb-12 opacity-80 leading-relaxed text-left">— SERVIDOR TÉCNICO: ECONOMÍA Y CONTROL.<br/>— NÚCLEO WEB: BIZUM Y CLANES.<br/>— STATUS: OPERATIVO.</p>
               <button onClick={() => setViewDossier(false)} className="px-10 py-4 bg-black text-white dark:bg-white dark:text-black font-black text-xs uppercase border-2 border-transparent">Cerrar</button>
             </div>
           </motion.div>
@@ -252,9 +266,9 @@ export default function Home() {
                       <h2 className="text-6xl md:text-8xl font-black text-orange-600">${myClan.balance?.toLocaleString()}</h2>
                     </div>
                     <div className="border-2 border-black dark:border-white divide-y-2 divide-black dark:divide-white bg-white dark:bg-black">
-                      <p className="p-4 text-[10px] font-black uppercase opacity-40 bg-black/5 dark:bg-white/5">Miembros_En_Nodo</p>
+                      <p className="p-4 text-[10px] font-black uppercase opacity-40 bg-black/5 dark:bg-white/5 text-left">Miembros_Nodo</p>
                       {clanMembers.map(m => (
-                        <div key={m.profiles.id} className="p-4 flex justify-between items-center">
+                        <div key={m.profiles.id} className="p-4 flex justify-between items-center text-black dark:text-white">
                           <p className="text-[11px] font-black uppercase" style={{color: m.profiles.name_color}}>@{m.profiles.minecraft_name}</p>
                           <p className="text-[9px] font-bold opacity-30 uppercase">{m.role}</p>
                         </div>
@@ -292,12 +306,12 @@ export default function Home() {
                   <div className="flex-1 flex items-center justify-center p-10 text-center">
                     <div className="space-y-6">
                       <MessageSquare size={48} className="mx-auto opacity-10" />
-                      <p className="opacity-20 font-black uppercase text-xs tracking-widest">Selecciona un agente del ranking para iniciar comunicación privada.</p>
+                      <p className="opacity-20 font-black uppercase text-xs tracking-widest text-black dark:text-white">Selecciona un agente del ranking para iniciar comunicación privada.</p>
                     </div>
                   </div>
                 ) : (
                   <div className="flex-1 flex flex-col h-full bg-white dark:bg-black">
-                    <div className="p-4 border-b-4 border-black dark:border-white flex justify-between items-center">
+                    <div className="p-4 border-b-4 border-black dark:border-white flex justify-between items-center text-black dark:text-white">
                       <span className="font-black uppercase text-xs" style={{color: selectedUser.name_color}}>@{selectedUser.minecraft_name} [ENCRIPCIÓN_ACTIVA]</span>
                       <button onClick={() => setSelectedUser(null)} className="text-[9px] font-black opacity-30">CERRAR</button>
                     </div>
@@ -310,8 +324,8 @@ export default function Home() {
                         </div>
                       ))}
                     </div>
-                    <div className="p-4 border-t-4 border-black dark:border-white flex gap-3">
-                      <input placeholder="TRANSMISIÓN_PRIVADA..." className="flex-1 bg-transparent p-4 text-[10px] font-black outline-none border-2 border-transparent focus:border-black dark:focus:border-white uppercase" value={privateInput} onChange={e => setPrivateInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendPrivateMessage()} />
+                    <div className="p-4 border-t-4 border-black dark:border-white flex gap-3 bg-white dark:bg-black">
+                      <input placeholder="TRANSMISIÓN_PRIVADA..." className="flex-1 bg-transparent p-4 text-[10px] font-black outline-none border-2 border-transparent focus:border-black dark:focus:border-white uppercase text-black dark:text-white" value={privateInput} onChange={e => setPrivateInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendPrivateMessage()} />
                       <button onClick={sendPrivateMessage} className="bg-black text-white dark:bg-white dark:text-black px-6 py-2 text-[10px] font-black uppercase hover:bg-orange-600 transition-all border-2 border-transparent"><SendHorizonal size={16}/></button>
                     </div>
                   </div>
@@ -320,7 +334,7 @@ export default function Home() {
             )}
 
             {activeTab === 'overview' && (
-              <motion.div key="ov" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col items-center justify-center p-6 text-center">
+              <motion.div key="ov" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col items-center justify-center p-6 text-center text-black dark:text-white">
                 <p className="text-[10px] font-black opacity-30 uppercase mb-12 tracking-widest">Capital_Neto</p>
                 <h2 className="text-7xl md:text-9xl font-black tracking-tighter leading-none"><span className="text-orange-600 text-3xl md:text-5xl align-top mr-4">$</span>{profile?.balance?.toLocaleString() || 0}</h2>
               </motion.div>
@@ -343,7 +357,7 @@ export default function Home() {
 
         <button onClick={() => setIsRankOpen(!isRankOpen)} className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-[100] bg-black text-white p-1 border-2 border-white hover:bg-orange-600" style={{ right: isRankOpen ? '310px' : '0px' }}>{isRankOpen ? <ChevronRight size={16}/> : <ChevronLeft size={16}/>}</button>
 
-        <motion.aside initial={false} animate={{ width: isRankOpen ? 320 : 0, opacity: isRankOpen ? 1 : 0 }} className="hidden md:flex border-l-4 border-black dark:border-white p-8 overflow-y-auto no-scrollbar bg-white dark:bg-black shrink-0 text-left relative overflow-hidden">
+        <motion.aside initial={false} animate={{ width: isRankOpen ? 320 : 0, opacity: isRankOpen ? 1 : 0 }} className="hidden md:flex border-l-4 border-black dark:border-white p-8 overflow-y-auto no-scrollbar bg-white dark:bg-black shrink-0 text-left relative overflow-hidden text-black dark:text-white">
           <div className="whitespace-nowrap w-full">
             <p className="text-[10px] font-black uppercase tracking-[0.4em] mb-10 opacity-30">Status_Global</p>
             <div className="space-y-4">
