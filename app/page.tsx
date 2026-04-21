@@ -259,7 +259,10 @@ export default function Home() {
             <p className="text-[10px] font-black uppercase" style={{ color: profile?.name_color }}>@{profile?.minecraft_name}</p>
             <button onClick={() => setShowEditModal(true)} className="p-1 hover:text-orange-600"><Edit3 size={12}/></button>
           </div>
-          <button onClick={() => supabase.auth.signOut().then(() => window.location.reload())} className="text-[9px] font-bold text-red-600 uppercase">Salir</button>
+          <button onClick={() => supabase.auth.signInWithOAuth({ 
+  provider: 'google',
+  options: { redirectTo: window.location.origin } 
+})}
         </div>
       </aside>
 
