@@ -1,105 +1,38 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap');
+@import "tailwindcss";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-:root {
-  --bg-system: #f4f4f4;
-  --vault-bg: #ffffff;
-  --text-main: #000000;
-  --border-ui: #000000;
+/* Esto es para que el @apply funcione en la v4 */
+@layer components {
+  .input-sharp {
+    @apply bg-transparent border-2 border-current p-4 font-black uppercase outline-none transition-all;
+    /* Si da error en focus:border, lo ponemos manual para asegurar */
+  }
+  
+  .input-sharp:focus {
+    border-color: #ea580c; /* el naranja-600 */
+  }
 }
 
-[data-theme='dark'] {
-  --bg-system: #050505;
-  --vault-bg: #0a0a0a;
-  --text-main: #ffffff;
-  --border-ui: #222222;
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-rgb: 255, 255, 255;
+}
+
+.dark {
+  --foreground-rgb: 255, 255, 255;
+  --background-rgb: 0, 0, 0;
 }
 
 body {
-  background-color: var(--bg-system);
-  color: var(--text-main);
-  margin: 0;
-  height: 100vh;
-  display: flex;
-  align-items: center; 
-  justify-content: center;
-  font-family: 'Outfit', sans-serif;
-  overflow: hidden;
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+  font-family: 'Inter', sans-serif;
 }
 
-.central-vault {
-  width: 95vw;
-  max-width: 1400px;
-  height: 90vh;
-  background: var(--vault-bg);
-  border: 2px solid var(--border-ui);
-  display: flex;
-  position: relative;
-  box-shadow: 20px 20px 0px rgba(0, 0, 0, 0.05);
+/* Quitar scrollbars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
-
-/* SIDEBAR IZQUIERDA */
-.sidebar-left {
-  width: 240px;
-  border-right: 2px solid var(--border-ui);
-  display: flex;
-  flex-direction: column;
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
-
-/* SIDEBAR DERECHA (CONECTADOS) */
-.sidebar-right {
-  width: 280px;
-  border-left: 2px solid var(--border-ui);
-  background: var(--vault-bg);
-  display: flex;
-  flex-direction: column;
-}
-
-.main-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 3rem;
-  display: flex;
-  flex-direction: column;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border-ui);
-  font-weight: 700;
-  text-transform: uppercase;
-  font-size: 11px;
-}
-
-.nav-item.active { background: var(--text-main); color: var(--vault-bg); }
-
-.input-sharp {
-  background: var(--vault-bg);
-  border: 2px solid var(--border-ui);
-  padding: 12px;
-  border-radius: 0;
-  font-weight: 700;
-}
-
-.corner-toggle {
-  position: absolute;
-  bottom: 0;
-  right: 280px; /* Alineado antes del panel derecho */
-  width: 50px;
-  height: 50px;
-  border-left: 2px solid var(--border-ui);
-  border-top: 2px solid var(--border-ui);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--vault-bg);
-  z-index: 100;
-}
-
-.no-scrollbar::-webkit-scrollbar { display: none; }
