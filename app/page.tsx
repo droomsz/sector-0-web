@@ -17,6 +17,7 @@ export default function Home() {
   const [viewDossier, setViewDossier] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
 
+  // --- ESTADOS DE SISTEMA ---
   const [myClan, setMyClan] = useState<any>(null)
   const [clanMembers, setClanMembers] = useState<any[]>([]) 
   const [pendingRequests, setPendingRequests] = useState<any[]>([])
@@ -26,6 +27,7 @@ export default function Home() {
   const [newClanName, setNewClanName] = useState('')
   const [depositAmount, setDepositAmount] = useState('')
 
+  // --- ESTADOS DE MENSAJERÍA ---
   const [generalMessages, setGeneralMessages] = useState<any[]>([])
   const [selectedUser, setSelectedUser] = useState<any>(null)
   const [messageInput, setMessageInput] = useState('')
@@ -33,10 +35,12 @@ export default function Home() {
   const [searchUserQuery, setSearchUserQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
 
+  // --- ESTADOS DE FORMULARIOS ---
   const [form, setForm] = useState({ mcName: '', amount: '', concept: '' })
   const [editForm, setEditForm] = useState({ nick: '', color: '#ffffff' })
   const [regColor, setRegColor] = useState('#ff6600')
 
+  // --- 1. LÓGICA DE TEMA (DARK MODE FIX) ---
   useEffect(() => {
     const root = window.document.documentElement;
     const initialTheme = localStorage.getItem('s0-theme') || 'light';
@@ -54,6 +58,7 @@ export default function Home() {
     root.setAttribute('data-theme', newTheme);
   };
 
+  // --- 2. CARGA DE DATOS CENTRAL ---
   const loadData = useCallback(async () => {
     const { data: { user: u } } = await supabase.auth.getUser()
     if (!u) { setUser(null); setLoading(false); return; }
@@ -67,15 +72,12 @@ export default function Home() {
       const { data: membership } = await supabase.from('clan_members')
         .select('role, clans(*)').eq('user_id', u.id).eq('status', 'accepted').maybeSingle()
       
-      // FIX PARA EL ERROR DE VERCEL (Line 79)
       if (membership && membership.clans) {
         const clanData = Array.isArray(membership.clans) ? membership.clans[0] : membership.clans;
         setMyClan(clanData)
-        
         const { data: members } = await supabase.from('clan_members')
           .select('status, role, profiles(id, minecraft_name, name_color)')
           .eq('clan_id', clanData.id)
-        
         if (members) {
           setClanMembers(members.filter((m: any) => m.status === 'accepted'))
           setPendingRequests(members.filter((m: any) => m.status === 'pending'))
@@ -111,6 +113,7 @@ export default function Home() {
     return () => { supabase.removeChannel(channel) }
   }, [loadData, fetchOnline, fetchGeneralChat])
 
+  // --- 3. ACCIONES DE SISTEMA ---
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     const { error } = await supabase.from('profiles').update({ minecraft_name: editForm.nick, name_color: editForm.color }).eq('id', user.id)
@@ -129,6 +132,12 @@ export default function Home() {
     const { error } = await supabase.rpc('transfer_by_minecraft', { target_name: form.mcName, amount_to_send: parseFloat(form.amount), sender_id: user.id, transfer_concept: form.concept })
     if (error) alert(error.message); else { await loadData(); setActiveTab('overview'); setForm({ mcName: '', amount: '', concept: '' }); }
     setLoading(false)
+  }
+
+  const handleClanDeposit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const { error } = await supabase.rpc('deposit_to_clan', { target_clan_id: myClan.id, amount_to_deposit: parseFloat(depositAmount), sender_id: user.id })
+    if (!error) { setDepositAmount(''); loadData(); } else alert(error.message)
   }
 
   const createClan = async () => {
@@ -150,47 +159,36 @@ export default function Home() {
 
   const openPrivateChat = (u: any) => {
     setSelectedUser(u); setActiveTab('messages')
-    supabase.from('private_messages').select('*')
-      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${u.id}),and(sender_id.eq.${u.id},receiver_id.eq.${user.id})`)
-      .order('created_at', { ascending: true })
-      .then(({data}) => setChatMessages(data || []))
+    supabase.from('private_messages').select('*').or(`and(sender_id.eq.${user.id},receiver_id.eq.${u.id}),and(sender_id.eq.${u.id},receiver_id.eq.${user.id})`).order('created_at', { ascending: true }).then(({data}) => setChatMessages(data || []))
   }
 
-  if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-current text-[10px] uppercase tracking-[1em]">Cargando_Protocolo...</div>
+  if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-current text-[10px] uppercase tracking-[1em]">Protocolo_Cargando...</div>
 
+  // --- 4. LANDING PAGE (DOSSIER INDUSTRIAL) ---
   if (!user) return (
     <div className="fixed inset-0 z-[500] bg-white dark:bg-black flex items-center justify-center overflow-hidden">
       <AnimatePresence mode="wait">
         {!viewDossier ? (
           <motion.div key="inv" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center p-10 max-w-2xl text-current">
-            <h1 className="text-[10px] font-black tracking-[0.5em] uppercase opacity-40 mb-6">Invitación de Red</h1>
+            <h1 className="text-[10px] font-black tracking-[0.5em] uppercase opacity-40 mb-6">Protocolo de Invitación</h1>
             <h2 className="text-6xl md:text-8xl font-black italic uppercase leading-none mb-12">Has sido invitado a <span className="text-orange-600">SECTOR 0</span></h2>
             <button onClick={() => setViewDossier(true)} className="px-12 py-6 border-2 border-current font-black text-xs uppercase tracking-widest hover:bg-orange-600 hover:text-white transition-all flex items-center gap-4 mx-auto">Leer Dossier <ArrowRight size={16}/></button>
           </motion.div>
         ) : (
-          <motion.div key="dos" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full h-full flex items-center justify-center p-6 overflow-y-auto bg-white dark:bg-black">
-            <div className="max-w-4xl w-full border-2 border-current p-8 md:p-16 shadow-[20px_20px_0px_0px_rgba(234,88,12,1)] my-auto bg-white dark:bg-black text-current">
+          <motion.div key="dos" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full h-full flex items-center justify-center p-6 bg-white dark:bg-black overflow-y-auto">
+            <div className="max-w-4xl w-full border-2 border-current p-8 md:p-16 shadow-[20px_20px_0px_0px_rgba(234,88,12,1)] my-auto bg-white dark:bg-black text-current text-left">
               <div className="flex justify-between items-center mb-10 border-b-2 border-current pb-6">
                 <h3 className="text-3xl md:text-5xl font-black italic uppercase text-orange-600">Dossier: Sector 0</h3>
                 <ShieldAlert size={32} className="opacity-20" />
               </div>
-              <div className="space-y-8 font-bold text-[11px] md:text-xs uppercase leading-relaxed border-l-4 border-orange-600 pl-8 text-left">
-                <section className="space-y-2">
-                  <p className="text-orange-600">— EL SERVIDOR (MINECRAFT)</p>
-                  <p className="opacity-70">Entorno técnico enfocado en economía avanzada. No es un survival convencional; es una arena corporativa.</p>
-                </section>
-                <section className="space-y-2">
-                  <p className="text-orange-600">— PLATAFORMA WEB</p>
-                  <p className="opacity-70">Núcleo de mando en desarrollo. Gestiona Bizum, facciones bancarias y ranking de capital directamente.</p>
-                </section>
-                <section className="space-y-2">
-                  <p className="text-orange-600">— DESPLIEGUE FINAL</p>
-                  <p className="opacity-70">La red iniciará su fase operativa inmediatamente después de finalizar los exámenes finales.</p>
-                </section>
+              <div className="space-y-8 font-bold text-[11px] md:text-xs uppercase leading-relaxed border-l-4 border-orange-600 pl-8">
+                <section><p className="text-orange-600">— EL SERVIDOR (MINECRAFT)</p><p className="opacity-70">Entorno técnico enfocado en economía avanzada. No es un survival convencional; es una arena corporativa.</p></section>
+                <section><p className="text-orange-600">— PLATAFORMA WEB</p><p className="opacity-70">Núcleo de mando en desarrollo real. Gestiona Bizum, facciones bancarias y ranking directamente.</p></section>
+                <section><p className="text-orange-600">— LANZAMIENTO</p><p className="opacity-70">La red Sector 0 iniciará su fase operativa inmediatamente después de finalizar los exámenes finales.</p></section>
               </div>
               <div className="mt-12 flex flex-col md:flex-row gap-6">
                 <button onClick={() => supabase.auth.signInWithOAuth({ provider: 'google' })} className="px-12 py-6 bg-orange-600 text-white font-black text-xs uppercase hover:bg-black transition-all">Confirmar y Entrar</button>
-                <button onClick={() => setViewDossier(false)} className="text-[10px] font-black uppercase opacity-40">Volver Atrás</button>
+                <button onClick={() => setViewDossier(false)} className="text-[10px] font-black uppercase opacity-40">Volver</button>
               </div>
             </div>
           </motion.div>
@@ -199,6 +197,7 @@ export default function Home() {
     </div>
   )
 
+  // --- 5. VINCULAR IDENTIDAD ---
   if (!profile || !profile.minecraft_name) return (
     <div className="fixed inset-0 z-[400] bg-white dark:bg-black flex items-center justify-center p-6 text-current">
       <div className="text-center space-y-8 max-w-sm w-full">
@@ -208,9 +207,9 @@ export default function Home() {
           e.preventDefault(); 
           const { error } = await supabase.from('profiles').upsert({ id: user.id, minecraft_name: e.target.nick.value, balance: 0, name_color: regColor });
           if (!error) loadData(); else alert(error.message);
-        }} className="space-y-6 text-left">
-          <input name="nick" required placeholder="TU_NICK_MINECRAFT" className="input-sharp text-center w-full uppercase bg-transparent border-2 border-current p-4" />
-          <div className="space-y-2">
+        }} className="space-y-6">
+          <input name="nick" required placeholder="TU_NICK_MINECRAFT" className="input-sharp text-center w-full uppercase border-2 border-current bg-transparent p-4" />
+          <div className="space-y-2 text-left">
             <p className="text-[10px] font-black uppercase opacity-40">Color de Identidad</p>
             <input type="color" value={regColor} onChange={e => setRegColor(e.target.value)} className="w-full h-12 cursor-pointer bg-transparent border-2 border-current p-1" />
           </div>
@@ -220,6 +219,10 @@ export default function Home() {
     </div>
   )
 
+  // --- DEFINICIÓN DE MYROLE (FIX VERCEL) ---
+  const myRole = clanMembers.find(m => m.profiles.id === user?.id)?.role;
+
+  // --- 6. DASHBOARD PRINCIPAL ---
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="central-vault bg-white dark:bg-black text-current">
       {showEditModal && (
@@ -294,13 +297,19 @@ export default function Home() {
                   <div className="p-12 border-2 border-current text-center relative">
                     <p className="text-[10px] font-black opacity-30 uppercase mb-4">Fondos de {myClan.name}</p>
                     <h2 className="text-8xl font-black text-orange-600">${myClan.balance?.toLocaleString()}</h2>
-                    <button onClick={leaveClan} className="mt-8 text-[9px] font-black text-red-500 border border-red-500 px-4 py-2 uppercase hover:bg-red-500 hover:text-white transition-all">Abandonar</button>
+                    <button onClick={leaveClan} className="mt-8 text-[9px] font-black text-red-500 border border-red-500 px-4 py-2 uppercase">Abandonar</button>
+                  </div>
+                  <div className="p-8 border-2 border-current bg-current/[0.02]">
+                    <form onSubmit={handleClanDeposit} className="flex gap-4">
+                      <input required type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="APORTAR..." className="input-sharp flex-1 text-current" />
+                      <button className="px-8 bg-black text-white font-black text-[10px] uppercase">Ingresar</button>
+                    </form>
                   </div>
                   <div className="border-2 border-current divide-y divide-current/10">
                     {clanMembers.map(m => (
                       <div key={m.profiles.id} className="p-4 flex justify-between items-center text-current">
                         <div><p className="text-xs font-black uppercase" style={{color: m.profiles.name_color}}>@{m.profiles.minecraft_name}</p><p className="text-[9px] font-bold opacity-30 uppercase">{m.role}</p></div>
-                        {m.profiles.id !== user.id && (myRole === 'leader' || myRole === 'co-leader') && (
+                        {m.profiles.id !== user?.id && (myRole === 'leader' || myRole === 'co-leader') && (
                           <div className="flex gap-2">
                             <button onClick={() => { let next = m.role === 'member' ? 'veteran' : 'co-leader'; supabase.from('clan_members').update({ role: next }).eq('user_id', m.profiles.id).eq('clan_id', myClan.id).then(() => loadData()) }} className="p-2 border border-current hover:bg-green-500 transition-all"><TrendingUp size={14}/></button>
                             <button onClick={() => { if(confirm("¿Expulsar?")) supabase.from('clan_members').delete().eq('clan_id', myClan.id).eq('user_id', m.profiles.id).then(() => loadData()) }} className="p-2 border border-current hover:bg-red-500 transition-all"><UserMinus size={14}/></button>
@@ -346,18 +355,18 @@ export default function Home() {
           {activeTab === 'messages' && (
             <motion.div key="ms" className="h-full flex gap-8 text-current">
               <div className="w-64 space-y-6">
-                <div className="flex border-2 border-current"><input placeholder="BUSCAR..." className="flex-1 p-3 bg-transparent text-[10px] outline-none" value={searchUserQuery} onChange={e => setSearchUserQuery(e.target.value)} /><button onClick={() => { supabase.from('profiles').select('*').ilike('minecraft_name', `%${searchUserQuery}%`).limit(5).then(({data}) => setSearchResults(data || [])) }} className="p-3 bg-current text-white"><Search size={14}/></button></div>
+                <div className="flex border-2 border-current"><input placeholder="BUSCAR..." className="flex-1 p-3 bg-transparent text-[10px] outline-none text-current" value={searchUserQuery} onChange={e => setSearchUserQuery(e.target.value)} /><button onClick={() => { supabase.from('profiles').select('*').ilike('minecraft_name', `%${searchUserQuery}%`).limit(5).then(({data}) => setSearchResults(data || [])) }} className="p-3 bg-current text-white"><Search size={14}/></button></div>
                 {searchResults.map(p => (
-                  <button key={p.id} onClick={() => openPrivateChat(p)} className={`w-full p-4 border border-current/10 text-left ${selectedUser?.id === p.id ? 'bg-orange-600 text-white border-orange-600' : ''}`}><p className="text-[10px] font-black uppercase">@{p.minecraft_name}</p></button>
+                  <button key={p.id} onClick={() => openPrivateChat(p)} className={`w-full p-4 border border-current/10 text-left ${selectedUser?.id === p.id ? 'bg-orange-600 text-white' : ''}`}><p className="text-[10px] font-black uppercase">@{p.minecraft_name}</p></button>
                 ))}
               </div>
               <div className="flex-1 border-2 border-current flex flex-col bg-current/[0.02]">
                 {selectedUser ? (
                   <>
                     <div className="p-4 border-b-2 border-current bg-current/5 uppercase text-[10px] font-black">Chat: @{selectedUser.minecraft_name}</div>
-                    <div className="flex-1 p-6 overflow-y-auto space-y-4 no-scrollbar">
+                    <div className="flex-1 p-6 overflow-y-auto space-y-4 no-scrollbar text-current">
                       {chatMessages.map((m, i) => (
-                        <div key={i} className={`flex ${m.sender_id === user.id ? 'justify-end' : 'justify-start'}`}><div className={`p-4 text-[11px] font-bold ${m.sender_id === user.id ? 'bg-orange-600 text-white' : 'border-2 border-current'}`}>{m.content}</div></div>
+                        <div key={i} className={`flex ${m.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}><div className={`p-4 text-[11px] font-bold ${m.sender_id === user?.id ? 'bg-orange-600 text-white' : 'border-2 border-current'}`}>{m.content}</div></div>
                       ))}
                     </div>
                   </>
@@ -369,8 +378,8 @@ export default function Home() {
       </main>
 
       <aside className="sidebar-right text-current">
-        <div className="p-6 border-b-2 border-current bg-current/5 flex justify-between items-center"><p className="text-[10px] font-black uppercase tracking-widest">Ranking_Net</p><Zap size={12} className="text-orange-600" /></div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
+        <div className="p-6 border-b-2 border-current bg-current/5 flex justify-between items-center"><p className="text-[10px] font-black uppercase tracking-widest text-current">Ranking_Net</p><Zap size={12} className="text-orange-600" /></div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar text-current">
           {onlineUsers.map((u, i) => {
             const isOnline = (new Date().getTime() - new Date(u.last_seen_web).getTime()) < 60000;
             return (
