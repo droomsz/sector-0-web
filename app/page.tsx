@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Wallet, Send, Shield, MessageSquare, 
-  Sun, Moon, UserPlus, Circle, TrendingUp, UserMinus, Zap, Search, Mail, Plus, Check, X, ArrowRight, ShieldAlert, Laptop, Calendar, Globe, Edit3
+  Sun, Moon, UserPlus, Circle, TrendingUp, UserMinus, Zap, Search, Plus, Check, X, ArrowRight, ShieldAlert, Laptop, Calendar, Globe, Edit3
 } from 'lucide-react'
 
 export default function Home() {
@@ -17,7 +17,6 @@ export default function Home() {
   const [viewDossier, setViewDossier] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
 
-  // --- ESTADOS DE RED Y CLAN ---
   const [myClan, setMyClan] = useState<any>(null)
   const [clanMembers, setClanMembers] = useState<any[]>([]) 
   const [pendingRequests, setPendingRequests] = useState<any[]>([])
@@ -27,7 +26,6 @@ export default function Home() {
   const [newClanName, setNewClanName] = useState('')
   const [depositAmount, setDepositAmount] = useState('')
 
-  // --- ESTADOS DE MENSAJERÍA ---
   const [generalMessages, setGeneralMessages] = useState<any[]>([])
   const [selectedUser, setSelectedUser] = useState<any>(null)
   const [messageInput, setMessageInput] = useState('')
@@ -35,12 +33,10 @@ export default function Home() {
   const [searchUserQuery, setSearchUserQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
 
-  // --- ESTADOS DE FORMULARIOS ---
   const [form, setForm] = useState({ mcName: '', amount: '', concept: '' })
   const [editForm, setEditForm] = useState({ nick: '', color: '#ffffff' })
   const [regColor, setRegColor] = useState('#ff6600')
 
-  // --- 1. LÓGICA DE TEMA (FIX DARK MODE) ---
   useEffect(() => {
     const root = window.document.documentElement;
     const initialTheme = localStorage.getItem('s0-theme') || 'light';
@@ -58,7 +54,6 @@ export default function Home() {
     root.setAttribute('data-theme', newTheme);
   };
 
-  // --- 2. CARGA DE DATOS CENTRAL ---
   const loadData = useCallback(async () => {
     const { data: { user: u } } = await supabase.auth.getUser()
     if (!u) { setUser(null); setLoading(false); return; }
@@ -72,13 +67,19 @@ export default function Home() {
       const { data: membership } = await supabase.from('clan_members')
         .select('role, clans(*)').eq('user_id', u.id).eq('status', 'accepted').maybeSingle()
       
+      // FIX PARA EL ERROR DE VERCEL (Line 79)
       if (membership && membership.clans) {
-        setMyClan(membership.clans)
+        const clanData = Array.isArray(membership.clans) ? membership.clans[0] : membership.clans;
+        setMyClan(clanData)
+        
         const { data: members } = await supabase.from('clan_members')
           .select('status, role, profiles(id, minecraft_name, name_color)')
-          .eq('clan_id', membership.clans.id)
-        setClanMembers(members?.filter(m => m.status === 'accepted') || [])
-        setPendingRequests(members?.filter(m => m.status === 'pending') || [])
+          .eq('clan_id', clanData.id)
+        
+        if (members) {
+          setClanMembers(members.filter((m: any) => m.status === 'accepted'))
+          setPendingRequests(members.filter((m: any) => m.status === 'pending'))
+        }
       } else {
         setMyClan(null); setClanMembers([]); setPendingRequests([]);
       }
@@ -110,8 +111,7 @@ export default function Home() {
     return () => { supabase.removeChannel(channel) }
   }, [loadData, fetchOnline, fetchGeneralChat])
 
-  // --- 3. ACCIONES DE SISTEMA ---
-  const handleUpdateProfile = async (e: any) => {
+  const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     const { error } = await supabase.from('profiles').update({ minecraft_name: editForm.nick, name_color: editForm.color }).eq('id', user.id)
     if (!error) { setShowEditModal(false); loadData(); fetchOnline(); }
@@ -124,7 +124,7 @@ export default function Home() {
     setMessageInput('')
   }
 
-  const handleTransfer = async (e: any) => {
+  const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true)
     const { error } = await supabase.rpc('transfer_by_minecraft', { target_name: form.mcName, amount_to_send: parseFloat(form.amount), sender_id: user.id, transfer_concept: form.concept })
     if (error) alert(error.message); else { await loadData(); setActiveTab('overview'); setForm({ mcName: '', amount: '', concept: '' }); }
@@ -140,14 +140,24 @@ export default function Home() {
     }
   }
 
+  const leaveClan = async () => {
+    if (!myClan) return
+    if (confirm("¿Abandonar facción?")) {
+      await supabase.from('clan_members').delete().eq('clan_id', myClan.id).eq('user_id', user.id)
+      window.location.reload()
+    }
+  }
+
   const openPrivateChat = (u: any) => {
     setSelectedUser(u); setActiveTab('messages')
-    supabase.from('private_messages').select('*').or(`and(sender_id.eq.${user.id},receiver_id.eq.${u.id}),and(sender_id.eq.${u.id},receiver_id.eq.${user.id})`).order('created_at', { ascending: true }).then(({data}) => setChatMessages(data || []))
+    supabase.from('private_messages').select('*')
+      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${u.id}),and(sender_id.eq.${u.id},receiver_id.eq.${user.id})`)
+      .order('created_at', { ascending: true })
+      .then(({data}) => setChatMessages(data || []))
   }
 
   if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-current text-[10px] uppercase tracking-[1em]">Cargando_Protocolo...</div>
 
-  // --- 4. LANDING PAGE (DOSSIER ORIGINAL CON SOMBRA) ---
   if (!user) return (
     <div className="fixed inset-0 z-[500] bg-white dark:bg-black flex items-center justify-center overflow-hidden">
       <AnimatePresence mode="wait">
@@ -164,18 +174,18 @@ export default function Home() {
                 <h3 className="text-3xl md:text-5xl font-black italic uppercase text-orange-600">Dossier: Sector 0</h3>
                 <ShieldAlert size={32} className="opacity-20" />
               </div>
-              <div className="space-y-8 font-bold text-[11px] md:text-xs uppercase leading-relaxed border-l-4 border-orange-600 pl-8">
+              <div className="space-y-8 font-bold text-[11px] md:text-xs uppercase leading-relaxed border-l-4 border-orange-600 pl-8 text-left">
                 <section className="space-y-2">
                   <p className="text-orange-600">— EL SERVIDOR (MINECRAFT)</p>
-                  <p className="opacity-70">Entorno técnico de Minecraft enfocado en economía avanzada y control territorial. No es un survival convencional; es una arena de poder corporativo.</p>
+                  <p className="opacity-70">Entorno técnico enfocado en economía avanzada. No es un survival convencional; es una arena corporativa.</p>
                 </section>
                 <section className="space-y-2">
                   <p className="text-orange-600">— PLATAFORMA WEB</p>
-                  <p className="opacity-70">Núcleo de mando actualmente en desarrollo tiempo real. Gestiona Bizum, facciones bancarias y ranking de capital directamente vinculado al juego.</p>
+                  <p className="opacity-70">Núcleo de mando en desarrollo. Gestiona Bizum, facciones bancarias y ranking de capital directamente.</p>
                 </section>
                 <section className="space-y-2">
                   <p className="text-orange-600">— DESPLIEGUE FINAL</p>
-                  <p className="opacity-70">La red Sector 0 iniciará su fase operativa inmediatamente después de finalizar los exámenes finales. Prepárate para el lanzamiento.</p>
+                  <p className="opacity-70">La red iniciará su fase operativa inmediatamente después de finalizar los exámenes finales.</p>
                 </section>
               </div>
               <div className="mt-12 flex flex-col md:flex-row gap-6">
@@ -189,7 +199,6 @@ export default function Home() {
     </div>
   )
 
-  // --- 5. VINCULAR IDENTIDAD (NICK + COLOR) ---
   if (!profile || !profile.minecraft_name) return (
     <div className="fixed inset-0 z-[400] bg-white dark:bg-black flex items-center justify-center p-6 text-current">
       <div className="text-center space-y-8 max-w-sm w-full">
@@ -197,13 +206,13 @@ export default function Home() {
         <h2 className="text-3xl font-black italic uppercase">Configurar Nodo</h2>
         <form onSubmit={async (e:any) => { 
           e.preventDefault(); 
-          const { error } = await supabase.from('profiles').upsert({ id: user.id, minecraft_name: e.target.nick.value, balance: 0, name_color: editForm.color });
+          const { error } = await supabase.from('profiles').upsert({ id: user.id, minecraft_name: e.target.nick.value, balance: 0, name_color: regColor });
           if (!error) loadData(); else alert(error.message);
-        }} className="space-y-6">
-          <input name="nick" required placeholder="TU_NICK_MINECRAFT" className="input-sharp text-center w-full uppercase" />
-          <div className="space-y-2 text-left">
+        }} className="space-y-6 text-left">
+          <input name="nick" required placeholder="TU_NICK_MINECRAFT" className="input-sharp text-center w-full uppercase bg-transparent border-2 border-current p-4" />
+          <div className="space-y-2">
             <p className="text-[10px] font-black uppercase opacity-40">Color de Identidad</p>
-            <input type="color" value={editForm.color} onChange={e => setEditForm({...editForm, color: e.target.value})} className="w-full h-12 cursor-pointer bg-transparent border-2 border-current p-1" />
+            <input type="color" value={regColor} onChange={e => setRegColor(e.target.value)} className="w-full h-12 cursor-pointer bg-transparent border-2 border-current p-1" />
           </div>
           <button type="submit" className="w-full py-6 bg-black text-white font-black text-xs uppercase hover:bg-orange-600 transition-all">Vincular</button>
         </form>
@@ -211,12 +220,8 @@ export default function Home() {
     </div>
   )
 
-  const myRole = clanMembers.find(m => m.profiles.id === user.id)?.role;
-
-  // --- 6. DASHBOARD PRINCIPAL ---
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="central-vault bg-white dark:bg-black text-current">
-      {/* MODAL EDITAR PERFIL */}
       {showEditModal && (
         <div className="fixed inset-0 z-[600] bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
           <div className="bg-white dark:bg-black border-2 border-current p-10 w-full max-w-sm space-y-8 text-current">
@@ -283,7 +288,7 @@ export default function Home() {
           )}
 
           {activeTab === 'clans' && (
-            <motion.div key="cl" className="space-y-10 text-current">
+            <div className="space-y-10 text-current">
               {myClan ? (
                 <div className="space-y-10">
                   <div className="p-12 border-2 border-current text-center relative">
@@ -293,7 +298,7 @@ export default function Home() {
                   </div>
                   <div className="border-2 border-current divide-y divide-current/10">
                     {clanMembers.map(m => (
-                      <div key={m.profiles.id} className="p-4 flex justify-between items-center">
+                      <div key={m.profiles.id} className="p-4 flex justify-between items-center text-current">
                         <div><p className="text-xs font-black uppercase" style={{color: m.profiles.name_color}}>@{m.profiles.minecraft_name}</p><p className="text-[9px] font-bold opacity-30 uppercase">{m.role}</p></div>
                         {m.profiles.id !== user.id && (myRole === 'leader' || myRole === 'co-leader') && (
                           <div className="flex gap-2">
@@ -314,7 +319,7 @@ export default function Home() {
                       <button onClick={() => { supabase.from('clans').select('*').ilike('name', `%${clanSearchQuery}%`).then(({data}) => setAvailableClans(data || [])) }} className="p-4 bg-current text-white"><Search size={18} /></button>
                     </div>
                     {availableClans.map(c => (
-                      <div key={c.id} className="p-4 border border-current/10 flex justify-between items-center"><span className="font-black text-xs uppercase">{c.name}</span><button onClick={() => { supabase.from('clan_members').insert({ clan_id: c.id, user_id: user.id, status: 'pending', role: 'member' }).then(() => alert("Solicitud enviada.")) }} className="text-[9px] font-black border border-current px-3 py-1">UNIRSE</button></div>
+                      <div key={c.id} className="p-4 border border-current/10 flex justify-between items-center"><span className="font-black text-xs uppercase">{c.name}</span><button onClick={() => { supabase.from('clan_members').insert({ clan_id: c.id, user_id: user.id, status: 'pending', role: 'member' }).then(() => alert("Enviada.")) }} className="text-[9px] font-black border border-current px-3 py-1">UNIRSE</button></div>
                     ))}
                   </div>
                   <div className="space-y-6">
@@ -324,15 +329,15 @@ export default function Home() {
                   </div>
                 </div>
               )}
-            </motion.div>
+            </div>
           )}
 
           {activeTab === 'transfer' && (
             <motion.div key="tr" className="max-w-lg mx-auto py-4 w-full text-current">
               <h2 className="text-6xl font-black italic text-center mb-10 uppercase">Orden_Assets</h2>
               <form onSubmit={handleTransfer} className="space-y-8 border-2 border-current p-12 bg-current/[0.02]">
-                <input required placeholder="NICK_RECEPTOR" value={form.mcName} onChange={e => setForm({...form, mcName: e.target.value})} className="input-sharp w-full" />
-                <input required type="number" placeholder="CANTIDAD" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="input-sharp w-full !text-6xl !font-black" />
+                <input required placeholder="NICK_RECEPTOR" value={form.mcName} onChange={e => setForm({...form, mcName: e.target.value})} className="input-sharp w-full uppercase bg-transparent border-2 border-current p-4" />
+                <input required type="number" placeholder="CANTIDAD" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="input-sharp w-full !text-6xl !font-black bg-transparent border-2 border-current p-4" />
                 <button className="w-full py-8 bg-black text-white font-black text-xs uppercase hover:bg-orange-600 transition-colors">AUTORIZAR BIZUM</button>
               </form>
             </motion.div>
