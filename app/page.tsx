@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Wallet, Send, Shield, MessageSquare, 
   Sun, Moon, Circle, TrendingUp, UserMinus, Zap, Search, ArrowRight, Globe, Edit3, LogOut, Trophy,
-  ChevronLeft, ChevronRight, Menu
+  ChevronLeft, ChevronRight
 } from 'lucide-react'
 
 export default function Home() {
@@ -19,16 +19,13 @@ export default function Home() {
   const [viewDossier, setViewDossier] = useState(false)
   const [isRegistering, setIsRegistering] = useState(false)
 
-  // --- ESTADOS DE PANELES (NUEVO) ---
   const [isNavOpen, setIsNavOpen] = useState(true)
   const [isRankOpen, setIsRankOpen] = useState(true)
 
-  // --- AUTH MANUAL ---
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [authError, setAuthError] = useState('')
 
-  // --- SISTEMA ---
   const [myClan, setMyClan] = useState<any>(null)
   const [clanMembers, setClanMembers] = useState<any[]>([]) 
   const [onlineUsers, setOnlineUsers] = useState<any[]>([])
@@ -124,32 +121,44 @@ export default function Home() {
 
   if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-black dark:text-white text-[10px] uppercase tracking-[1em]">Cargando_Consola...</div>
 
-  // --- LANDING / LOGIN ---
+  // --- 4. LANDING / LOGIN (BOTÓN CORREGIDO) ---
   if (!user) return (
     <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center p-4 transition-colors duration-300">
       <AnimatePresence mode="wait">
         {!viewDossier ? (
-          <motion.div key="inv" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center p-8 md:p-12 w-full max-w-md border-4 border-black dark:border-white shadow-[15px_15px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black">
+          <motion.div key="inv" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center p-8 md:p-12 w-full max-w-md border-4 border-black dark:border-white shadow-[15px_15px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black">
             <h1 className="text-5xl md:text-6xl font-black italic uppercase mb-2 text-black dark:text-white leading-none">SECTOR <span className="text-orange-600">0</span></h1>
             <p className="text-[9px] font-black uppercase tracking-[0.4em] opacity-40 mb-10 text-black dark:text-white">Terminal_Acceso_Red</p>
             
-            <form onSubmit={handleAuth} className="space-y-4 mb-8">
+            <form onSubmit={handleAuth} className="space-y-4 mb-10">
               <input type="email" placeholder="EMAIL" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs text-black dark:text-white outline-none focus:border-orange-600" value={email} onChange={(e) => setEmail(e.target.value)} required />
               <input type="password" placeholder="PASSWORD" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs text-black dark:text-white outline-none focus:border-orange-600" value={password} onChange={(e) => setPassword(e.target.value)} required />
               {authError && <p className="text-[9px] text-red-600 font-bold uppercase text-left">{authError}</p>}
               <button type="submit" className="w-full py-5 bg-black text-white dark:bg-white dark:text-black font-black text-xs uppercase hover:bg-orange-600 transition-all shadow-[5px_5px_0px_0px_rgba(234,88,12,1)]">
-                {isRegistering ? 'Registrar' : 'Entrar'}
+                {isRegistering ? 'Confirmar Registro' : 'Inicializar Sesión'}
               </button>
             </form>
 
-            <div className="flex flex-col gap-4">
-              <button onClick={() => setIsRegistering(!isRegistering)} className="text-[10px] font-black uppercase opacity-40 underline decoration-orange-600 decoration-2">{isRegistering ? '¿Ya tienes cuenta? Login' : '¿Nuevo agente? Registro'}</button>
-              <button onClick={() => setViewDossier(true)} className="text-[10px] font-black uppercase opacity-20 flex items-center gap-2 mx-auto">Dossier <ArrowRight size={12}/></button>
+            {/* BOTÓN DE CAMBIO REFORZADO */}
+            <div className="flex flex-col gap-6 border-t-2 border-black/5 dark:border-white/5 pt-8">
+              <button 
+                onClick={() => setIsRegistering(!isRegistering)} 
+                className="text-[11px] font-black uppercase text-orange-600 dark:text-orange-500 hover:scale-105 transition-all"
+              >
+                {isRegistering ? '[ VOLVER AL LOGIN ]' : '[ SOLICITAR NUEVO ACCESO ]'}
+              </button>
+              
+              <button 
+                onClick={() => setViewDossier(true)} 
+                className="text-[10px] font-black uppercase opacity-30 hover:opacity-100 flex items-center gap-2 mx-auto transition-all"
+              >
+                Consultar Dossier <ArrowRight size={12}/>
+              </button>
             </div>
           </motion.div>
         ) : (
           <motion.div key="dos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-white dark:bg-black">
-            <div className="max-w-4xl w-full border-4 border-black dark:border-white p-8 md:p-16 shadow-[20px_20px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black">
+            <div className="max-w-4xl w-full border-4 border-black dark:border-white p-8 md:p-16 shadow-[15px_15px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black">
               <h3 className="text-3xl md:text-5xl font-black italic uppercase text-orange-600 mb-8 border-b-2 border-black dark:border-white pb-6 text-left leading-none">Dossier: Sector 0</h3>
               <div className="space-y-6 md:space-y-8 font-bold text-[10px] md:text-xs uppercase border-l-4 border-orange-600 pl-8 mb-12 opacity-80 leading-relaxed text-left text-black dark:text-white">
                 <p>— SERVIDOR TÉCNICO: ECONOMÍA AVANZADA Y CONTROL DE ACTIVOS.</p>
@@ -168,7 +177,7 @@ export default function Home() {
   if (!profile?.minecraft_name) return (
     <div className="fixed inset-0 bg-white dark:bg-black flex items-center justify-center p-4">
       <div className="text-center space-y-10 w-full max-w-sm border-4 border-black dark:border-white p-10 shadow-[15px_15px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black text-black dark:text-white">
-        <h2 className="text-3xl font-black italic uppercase">Identidad_Red</h2>
+        <h2 className="text-3xl font-black italic uppercase">Identidad</h2>
         <form onSubmit={async (e:any) => { 
           e.preventDefault();
           await supabase.from('profiles').upsert({ id: user.id, minecraft_name: e.target.nick.value, balance: 0, name_color: '#ff6600' });
@@ -194,10 +203,10 @@ export default function Home() {
         </div>
       </header>
 
-      {/* CONTENEDOR MAESTRO (CAJA CENTRAL) */}
+      {/* CAJA CENTRAL */}
       <div className="w-full max-w-[1440px] h-full md:h-[85vh] md:border-4 md:border-black md:dark:border-white md:shadow-[25px_25px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black flex flex-col md:flex-row overflow-hidden relative">
         
-        {/* BOTÓN TEMA (INFERIOR DERECHA) */}
+        {/* BOTÓN TEMA (BOTTOM RIGHT) */}
         <button 
           onClick={toggleTheme} 
           className="hidden md:block absolute bottom-6 right-6 z-50 p-4 border-4 border-black dark:border-white hover:bg-orange-600 hover:text-white transition-all bg-white dark:bg-black shadow-[5px_5px_0px_0px_rgba(234,88,12,1)]"
@@ -205,25 +214,25 @@ export default function Home() {
           {theme === 'light' ? <Moon size={20}/> : <Sun size={20}/>}
         </button>
 
-        {/* --- NAVEGADOR IZQUIERDA (DESPLEGABLE) --- */}
+        {/* NAVEGADOR (COLAPSABLE) */}
         <motion.aside 
           initial={false}
           animate={{ width: isNavOpen ? 256 : 0, opacity: isNavOpen ? 1 : 0 }}
           className="hidden md:flex border-r-4 border-black dark:border-white flex-col shrink-0 relative overflow-hidden"
         >
-          <div className="p-8 border-b-4 border-black dark:border-white font-black italic text-xl uppercase tracking-tighter whitespace-nowrap">Sector <span className="text-orange-600">0</span></div>
+          <div className="p-8 border-b-4 border-black dark:border-white font-black italic text-xl uppercase tracking-tighter whitespace-nowrap text-black dark:text-white">Sector <span className="text-orange-600">0</span></div>
           <nav className="flex-1 p-4 space-y-2 whitespace-nowrap">
             {['chat', 'overview', 'transfer', 'clans', 'messages'].map(id => (
-              <button key={id} onClick={() => setActiveTab(id)} className={`w-full flex items-center p-4 text-[10px] font-black uppercase transition-all border-2 border-transparent ${activeTab === id ? 'bg-orange-600 text-white border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]' : 'opacity-40 hover:opacity-100 hover:border-black dark:hover:border-white'}`}>{id}</button>
+              <button key={id} onClick={() => setActiveTab(id)} className={`w-full flex items-center p-4 text-[10px] font-black uppercase transition-all border-2 border-transparent ${activeTab === id ? 'bg-orange-600 text-white border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]' : 'opacity-40 hover:opacity-100 hover:border-black dark:hover:border-white text-black dark:text-white'}`}>{id}</button>
             ))}
           </nav>
           <div className="p-6 border-t-4 border-black dark:border-white bg-black/5 dark:bg-white/5 whitespace-nowrap">
-            <p className="text-[10px] font-black uppercase truncate mb-2" style={{ color: profile?.name_color }}>@{profile?.minecraft_name}</p>
+            <p className="text-[10px] font-black uppercase truncate mb-2 text-black dark:text-white" style={{ color: profile?.name_color }}>@{profile?.minecraft_name}</p>
             <button onClick={() => supabase.auth.signOut().then(() => window.location.reload())} className="text-[9px] font-black text-red-600 uppercase hover:underline">Desconectar</button>
           </div>
         </motion.aside>
 
-        {/* BOTÓN TOGGLE NAVEGADOR */}
+        {/* TOGGLE IZQ */}
         <button 
           onClick={() => setIsNavOpen(!isNavOpen)} 
           className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-[100] bg-black text-white p-1 border-2 border-white hover:bg-orange-600 transition-all"
@@ -232,12 +241,12 @@ export default function Home() {
           {isNavOpen ? <ChevronLeft size={16}/> : <ChevronRight size={16}/>}
         </button>
 
-        {/* --- PANTALLA PRINCIPAL (CENTRO) --- */}
+        {/* MAIN VIEW */}
         <main className="flex-1 flex flex-col bg-white dark:bg-black overflow-y-auto no-scrollbar relative mb-20 md:mb-0">
           <AnimatePresence mode="wait">
             {activeTab === 'chat' && (
               <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col h-full">
-                <div className="p-4 md:p-5 border-b-4 border-black dark:border-white bg-black/5 dark:bg-white/5 font-black uppercase text-[10px] md:text-[11px] tracking-widest text-black dark:text-white">Canal_Global_Sector_0</div>
+                <div className="p-4 md:p-5 border-b-4 border-black dark:border-white bg-black/5 dark:bg-white/5 font-black uppercase text-[10px] md:text-[11px] tracking-widest text-black dark:text-white">Canal_Global</div>
                 <div className="flex-1 p-6 md:p-8 overflow-y-auto space-y-6 no-scrollbar">
                   {generalMessages.map((m, i) => (
                     <div key={i} className="flex flex-col gap-1">
@@ -263,25 +272,19 @@ export default function Home() {
             {activeTab === 'transfer' && (
               <motion.div key="tr" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col items-center justify-center p-6 text-center text-black dark:text-white">
                 <form onSubmit={handleTransfer} className="w-full max-w-md space-y-8 md:space-y-10">
-                  <h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter leading-none">Autorizar_Bizum</h2>
-                  <div className="space-y-4 md:space-y-6">
-                    <input required placeholder="NICK_RECEPTOR" value={form.mcName} onChange={e => setForm({...form, mcName: e.target.value})} className="w-full bg-transparent border-2 border-black dark:border-white p-4 md:p-5 font-black uppercase text-center outline-none focus:border-orange-600 text-black dark:text-white" />
+                  <h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter leading-none text-current">Autorizar_Bizum</h2>
+                  <div className="space-y-6">
+                    <input required placeholder="NICK_RECEPTOR" value={form.mcName} onChange={e => setForm({...form, mcName: e.target.value})} className="w-full bg-transparent border-2 border-black dark:border-white p-5 font-black uppercase text-center outline-none focus:border-orange-600 text-black dark:text-white" />
                     <input required type="number" placeholder="00.00" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="w-full bg-transparent border-2 border-black dark:border-white p-6 font-black text-6xl md:text-7xl text-center outline-none focus:border-orange-600 text-black dark:text-white" />
                   </div>
-                  <button className="w-full py-6 bg-black text-white dark:bg-white dark:text-black font-black text-[10px] md:text-xs uppercase hover:bg-orange-600 transition-all shadow-[6px_6px_0px_0px_rgba(234,88,12,1)] border-2 border-transparent">Ejecutar</button>
+                  <button className="w-full py-8 bg-black text-white dark:bg-white dark:text-black font-black text-xs uppercase hover:bg-orange-600 transition-all shadow-[8px_8px_0px_0px_rgba(234,88,12,1)] border-2 border-transparent">Ejecutar Bizum</button>
                 </form>
               </motion.div>
-            )}
-
-            {(activeTab === 'ranking_mobile' || (activeTab === 'chat' && !isRankOpen)) && (
-               <div className="md:hidden">
-                 {/* El ranking mobile se ve como una pestaña propia */}
-               </div>
             )}
           </AnimatePresence>
         </main>
 
-        {/* BOTÓN TOGGLE RANKING */}
+        {/* TOGGLE DER */}
         <button 
           onClick={() => setIsRankOpen(!isRankOpen)} 
           className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-[100] bg-black text-white p-1 border-2 border-white hover:bg-orange-600 transition-all"
@@ -290,7 +293,7 @@ export default function Home() {
           {isRankOpen ? <ChevronRight size={16}/> : <ChevronLeft size={16}/>}
         </button>
 
-        {/* --- RANKING DERECHA (DESPLEGABLE) --- */}
+        {/* RANKING (COLAPSABLE) */}
         <motion.aside 
           initial={false}
           animate={{ width: isRankOpen ? 320 : 0, opacity: isRankOpen ? 1 : 0 }}
@@ -314,14 +317,9 @@ export default function Home() {
           </div>
         </motion.aside>
 
-        {/* NAVEGACIÓN INFERIOR (MÓVIL) */}
+        {/* NAVEGACIÓN MÓVIL */}
         <nav className="flex md:hidden fixed bottom-0 left-0 right-0 h-20 border-t-4 border-black dark:border-white bg-white dark:bg-black z-[100] px-2 items-center justify-around">
-          {[
-            { id: 'chat', icon: Globe },
-            { id: 'overview', icon: Wallet },
-            { id: 'transfer', icon: Send },
-            { id: 'ranking_mobile', icon: Trophy },
-          ].map(item => (
+          {[{ id: 'chat', icon: Globe }, { id: 'overview', icon: Wallet }, { id: 'transfer', icon: Send }, { id: 'ranking_mobile', icon: Trophy }].map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)} className={`p-4 transition-all ${activeTab === item.id ? 'text-orange-600 scale-125' : 'opacity-40 text-black dark:text-white'}`}>
               <item.icon size={22} />
             </button>
