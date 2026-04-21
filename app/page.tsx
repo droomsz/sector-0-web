@@ -94,7 +94,6 @@ export default function Home() {
     return () => subscription.unsubscribe()
   }, [loadData, fetchGlobal])
 
-  // --- 3. ACCIONES ---
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault(); setAuthError(''); setLoading(true)
     const { data, error } = isRegistering 
@@ -135,10 +134,10 @@ export default function Home() {
       <AnimatePresence mode="wait">
         {!viewDossier ? (
           <motion.div key="inv" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center p-8 md:p-12 w-full max-w-md border-4 border-black dark:border-white shadow-[15px_15px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black">
-            <h1 className="text-5xl md:text-6xl font-black italic uppercase mb-2 text-black dark:text-white leading-none text-current">SECTOR <span className="text-orange-600">0</span></h1>
-            <p className="text-[9px] font-black uppercase tracking-[0.4em] opacity-40 mb-10 text-current">Protocolo_De_Acceso</p>
+            <h1 className="text-5xl md:text-6xl font-black italic uppercase mb-2 text-black dark:text-white leading-none">SECTOR <span className="text-orange-600">0</span></h1>
+            <p className="text-[9px] font-black uppercase tracking-[0.4em] opacity-40 mb-10">Protocolo_De_Acceso</p>
             
-            <form onSubmit={handleAuth} className="space-y-4 mb-10 text-current">
+            <form onSubmit={handleAuth} className="space-y-4 mb-10">
               <input type="email" placeholder="EMAIL" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs text-current outline-none focus:border-orange-600" value={email} onChange={(e) => setEmail(e.target.value)} required />
               <input type="password" placeholder="PASSWORD" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs text-current outline-none focus:border-orange-600" value={password} onChange={(e) => setPassword(e.target.value)} required />
               {authError && <p className="text-[9px] text-red-600 font-bold uppercase text-left">{authError}</p>}
@@ -147,7 +146,7 @@ export default function Home() {
               </button>
             </form>
 
-            <div className="flex flex-col gap-6 border-t-2 border-black/5 dark:border-white/5 pt-8 text-current">
+            <div className="flex flex-col gap-6 border-t-2 border-black/5 dark:border-white/5 pt-8">
               <button 
                 onClick={() => setIsRegistering(!isRegistering)} 
                 className="text-[11px] font-black uppercase text-orange-600 dark:text-orange-500 hover:scale-105 transition-all"
@@ -165,7 +164,7 @@ export default function Home() {
           </motion.div>
         ) : (
           <motion.div key="dos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-white dark:bg-black">
-            <div className="max-w-4xl w-full border-4 border-black dark:border-white p-8 md:p-16 shadow-[20px_20px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black text-current">
+            <div className="max-w-4xl w-full border-4 border-black dark:border-white p-8 md:p-16 shadow-[20px_20px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black">
               <h3 className="text-3xl md:text-5xl font-black italic uppercase text-orange-600 mb-8 border-b-2 border-black dark:border-white pb-6 text-left leading-none">Dossier: Sector 0</h3>
               <div className="space-y-6 md:space-y-8 font-bold text-[10px] md:text-xs uppercase border-l-4 border-orange-600 pl-8 mb-12 opacity-80 leading-relaxed text-left text-current">
                 <p>— SERVIDOR TÉCNICO: ECONOMÍA AVANZADA Y CONTROL DE ACTIVOS.</p>
