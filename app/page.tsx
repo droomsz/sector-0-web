@@ -30,7 +30,7 @@ export default function Home() {
   const [nameColor, setNameColor] = useState('#ff6600')
   const [tempNick, setTempNick] = useState('')
   const isAdmin = profile?.minecraft_name === 'droomsz'
-  const [isAdminView, setIsAdminView] = useState(true)
+  const [isAdminView, setIsAdminView] = useState(true) // Switch de Moderación
 
   // --- [3] UI, NAVEGACIÓN Y REFERENCIAS ---
   const chatEndRef = useRef<HTMLDivElement>(null)
@@ -56,7 +56,7 @@ export default function Home() {
   const analyserRef = useRef<AnalyserNode | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
-  // --- [5] MENSAJERÍA PRIVADA (FIX PARA BUILD ERROR) ---
+  // --- [5] MENSAJERÍA PRIVADA ---
   const [selectedUser, setSelectedUser] = useState<any>(null)
   const [privateMessages, setPrivateMessages] = useState<any[]>([])
   const [privateInput, setPrivateInput] = useState('')
@@ -77,14 +77,49 @@ export default function Home() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
-  // --- [7] BASE DE DATOS DE MODS ---
+  // --- [7] ENCICLOPEDIA TOTAL DE MODS (1.12.2) ---
   const modCategories = [
-    { title: "Exploración", mods: [{ name: "Xaero's Minimap", desc: "Mapeo militar en tiempo real." }, { name: "Waystones", desc: "Red de teletransporte global." }] },
-    { title: "Criaturas", mods: [{ name: "Ice and Fire", desc: "Amenaza de dragones y bosses." }, { name: "Mo' Creatures", desc: "Bio-diversidad aumentada." }] },
-    { title: "Técnico", mods: [{ name: "Immersive Engineering", desc: "Módulo industrial realista." }, { name: "SecurityCraft", desc: "Defensa perimetral avanzada." }] }
+    {
+      title: "Exploración y Utilidades",
+      mods: [
+        { name: "Xaero's Minimap + World Map", desc: "Sistemas cartográficos de grado militar. Mapa mundial interactivo y radar local de entidades." },
+        { name: "Corail Tombstone", desc: "Protocolo post-mortem. Genera una tumba con inventario asegurado y sistema de perks basados en almas." },
+        { name: "Iron Backpacks", desc: "Almacenamiento modular táctico. Mochilas de alta capacidad mejorables para expediciones largas." },
+        { name: "Waystones", desc: "Red de teletransporte global. Permite el desplazamiento instantáneo entre nodos de control vinculados." },
+        { name: "Ore Excavation", desc: "Módulo de eficiencia extractiva. Permite derribar árboles o vetas completas de un solo golpe." }
+      ]
+    },
+    {
+      title: "Criaturas y Bio-Amenazas",
+      mods: [
+        { name: "Ice and Fire: Dragons", desc: "Máxima amenaza mitológica. Dragones de fuego, hielo y rayos, sirenas, cíclopes y botín legendario." },
+        { name: "Mo' Creatures", desc: "Bio-diversidad extrema. Más de 50 nuevas entidades biológicas integradas en el ecosistema." },
+        { name: "Fossils and Archeology", desc: "Ingeniería biológica. Recuperación de fósiles y clonación de ADN para restaurar especies extintas." },
+        { name: "Chococraft 3", desc: "Transporte aviar especializado. Domesticación, cría y monta de Chocobos tácticos." },
+        { name: "Mowzie's Mobs", desc: "Mini-bosses de élite con animaciones avanzadas y mecánicas de combate únicas por fases." }
+      ]
+    },
+    {
+      title: "Incursiones y Arsenal",
+      mods: [
+        { name: "The Twilight Forest", desc: "Dimensión paralela de penumbra. Bosques densos con fortalezas masivas y jefes de progresión técnica." },
+        { name: "Roguelike Dungeons", desc: "Estructuras subterráneas procedimentales. Mazmorras de varios niveles llenas de equipo táctico." },
+        { name: "Spartan Weaponry", desc: "Arsenal pesado expandido. Armas blancas y de proyectiles optimizadas para combate avanzado." },
+        { name: "Tinkers' Construct", desc: "Protocolo de forja avanzada. Herramientas personalizadas, fundición de metales y picos de 3x3." }
+      ]
+    },
+    {
+      title: "Sociedad y Tecnología",
+      mods: [
+        { name: "Minecraft Comes Alive (MCA)", desc: "Protocolo de IA humana. Aldeanos con conciencia para interacciones, matrimonio y familia." },
+        { name: "SecurityCraft", desc: "Defensa perimetral avanzada. Cámaras, escáneres de retina, minas y puertas reforzadas con código." },
+        { name: "Immersive Engineering", desc: "Módulo industrial realista. Redes eléctricas de alto voltaje, maquinaria pesada y procesado." },
+        { name: "MrCrayfish's Furniture", desc: "Equipamiento funcional para interiores. Mobiliario técnico para estaciones de mando y bases." }
+      ]
+    }
   ];
 
-  // --- [8] FUNCIONES DE UX Y SCROLL ---
+  // --- [8] FUNCIONES DE UX Y ESTILO ---
   const scrollToBottom = useCallback((behavior: "smooth" | "auto" = "smooth") => {
     if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior });
   }, []);
@@ -107,9 +142,7 @@ export default function Home() {
     root.style.setProperty('--accent-rgb', hexToRgb(accentColor));
   }, [theme, accentColor]);
 
-  const toggleTheme = () => setTheme(prev => (prev === 'light' ? 'dark' : 'light'))
-
-  // --- [9] AUDIO & TEST ---
+  // --- [9] AUDIO Y HARDWARE ---
   const stopSoundTest = useCallback(() => {
     if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); streamRef.current = null; }
     if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; }
@@ -140,7 +173,7 @@ export default function Home() {
     } catch (e) { setIsTesting(false); }
   }
 
-  // --- [10] DATA FETCHING & REAL-TIME ---
+  // --- [10] DATA FETCHING & MASTER SYNC ---
   const fetchGlobal = useCallback(async () => {
     const { data: online } = await supabase.from('profiles').select('*').not('minecraft_name', 'is', null).order('balance', { ascending: false });
     setOnlineUsers(online || []);
@@ -182,10 +215,11 @@ export default function Home() {
   useEffect(() => {
     isMounted.current = true;
     if (!user || !profile) return
-    const channel = supabase.channel('sector0_sync_v80', { config: { presence: { key: user.id } } })
+    const channel = supabase.channel('sector0_sync_v81', { config: { presence: { key: user.id } } })
     channel
       .on('postgres_changes', { event: '*', schema: 'public', table: 'general_messages' }, () => fetchGlobal())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'suggestions' }, () => fetchGlobal())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clans' }, () => { fetchGlobal(); fetchAdminClans(); })
       .on('presence', { event: 'sync' }, () => {
         const agents = Object.values(channel.presenceState()).flat().map((p: any) => p.user_info);
         setActiveAgents(agents); setVoiceAgents(agents.filter((a: any) => a.in_voice));
@@ -196,32 +230,21 @@ export default function Home() {
         }
       });
     return () => { isMounted.current = false; channel.unsubscribe(); stopSoundTest(); }
-  }, [user, profile, isInVoice, isMicMuted, isDeafened, fetchGlobal, stopSoundTest]);
+  }, [user, profile, isInVoice, isMicMuted, isDeafened, fetchGlobal, fetchAdminClans, stopSoundTest]);
 
   // --- [11] ACCIONES OPERATIVAS ---
-  const sendPrivateMessage = async () => {
-    if (!privateInput.trim() || !selectedUser) return;
-    await supabase.from('private_messages').insert({ sender_id: user.id, receiver_id: selectedUser.id, content: privateInput });
-    setPrivateInput(''); fetchPrivateMessages(selectedUser.id);
-  }
-
-  const deleteEntry = async (id: string, table: string = 'general_messages') => {
-    if (!confirm("¿Purga permanente?")) return;
-    await supabase.from(table).delete().eq('id', id); fetchGlobal();
-  }
-
   const adminDeleteClan = async (clanId: string) => {
-    if (!confirm("¿ELIMINAR FACCIÓN?")) return;
+    if (!confirm("¿PURGA TOTAL DE FACCIÓN?")) return;
     await supabase.from('clans').delete().eq('id', clanId); fetchAdminClans();
   }
 
   const adminExpelMember = async (userId: string, clanId: string) => {
-    if (!confirm("¿EXPULSAR AGENTE?")) return;
+    if (!confirm("¿ELIMINAR AGENTE DEL NODO?")) return;
     await supabase.from('clan_members').delete().eq('user_id', userId).eq('clan_id', clanId); fetchAdminClans();
   }
 
   const adminEditClanBalance = async (clanId: string, current: number) => {
-    const val = prompt("BALANCE:", current.toString());
+    const val = prompt("MODIFICAR BALANCE FISCAL:", current.toString());
     if (val) { await supabase.from('clans').update({ balance: parseFloat(val) }).eq('id', clanId); fetchAdminClans(); }
   }
 
@@ -234,7 +257,7 @@ export default function Home() {
   const handleTransfer = async (e: any) => {
     e.preventDefault(); setLoading(true);
     const { error } = await supabase.rpc('transfer_by_minecraft', { target_name: form.mcName, amount_to_send: parseFloat(form.amount), sender_id: user.id, transfer_concept: form.concept });
-    if (!error) { loadData(user); setActiveTab('overview'); alert("Capital enviado."); } else alert(error.message);
+    if (!error) { loadData(user); setActiveTab('overview'); alert("Sincronización completa."); } else alert(error.message);
     setLoading(false);
   }
 
@@ -267,6 +290,11 @@ export default function Home() {
     if (confirm(`¿Abandonar nodo?`)) { await supabase.from('clan_members').delete().eq('user_id', user.id).eq('clan_id', myClan.id); window.location.reload(); }
   }
 
+  const deleteEntry = async (id: string, table: string = 'general_messages') => {
+    if (!confirm("¿Borrado permanente?")) return
+    await supabase.from(table).delete().eq('id', id); fetchGlobal();
+  }
+
   const saveProfileSettings = async () => {
     setSaving(true); await supabase.from('profiles').update({ minecraft_name: tempNick, name_color: nameColor, accent_color: accentColor }).eq('id', user.id);
     loadData(user); setSaving(false); alert("Nodo actualizado.");
@@ -296,31 +324,26 @@ export default function Home() {
 
   const toggleVoice = () => { if (!isInVoice) { new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3').play().catch(()=>{}); } setIsInVoice(!isInVoice); if (isInVoice) stopSoundTest(); }
 
-  if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-[10px] uppercase tracking-[1em]">Sincronizando_Terminal...</div>
+  if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-[10px] uppercase tracking-[1em]">Sincronizando_Sector_0...</div>
 
-  // --- VISTA ACCESO ---
+  // --- VISTA ACCESO (DOSSIER FIX) ---
   if (!user) return (
-    <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center p-4">
+    <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center p-4 text-center">
       <AnimatePresence mode="wait">
         {viewDossier ? (
-          <motion.div key="dos" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-3xl w-full border-4 border-black dark:border-white p-6 md:p-16 bg-white dark:bg-black shadow-[20px_20px_0px_0px_rgba(var(--accent-rgb),1)]">
-            <div className="flex items-center justify-center gap-4 mb-10 text-current">
-              <AlertCircle style={{ color: 'var(--accent)' }} size={40} className="shrink-0" />
-              <h3 className="text-3xl md:text-5xl font-black italic uppercase leading-none tracking-tighter text-center">Protocolo_Sector_0</h3>
-            </div>
+          <motion.div key="dos" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-3xl w-full border-4 border-black dark:border-white p-8 md:p-16 bg-white dark:bg-black shadow-[20px_20px_0px_0px_rgba(var(--accent-rgb),1)]">
+            <div className="flex items-center justify-center gap-4 mb-10 text-current"><AlertCircle style={{ color: 'var(--accent)' }} size={40} className="shrink-0" /><h3 className="text-3xl md:text-5xl font-black italic uppercase leading-none tracking-tighter">Protocolo_Sector_0</h3></div>
             <div className="space-y-6 font-bold text-[12px] md:text-[14px] uppercase border-l-4 pl-6 md:pl-10 mb-12 py-4 bg-black/5 dark:bg-white/5 text-left text-current leading-relaxed" style={{ borderColor: 'var(--accent)' }}>
               <p>— TERMINAL DE CONTROL FINANCIERO Y FACCIONES ACTIVA.</p>
               <p>— LA IDENTIDAD DEBE SER VINCULADA PARA OPERAR EN RED.</p>
               <p>— CUALQUIER ACCIÓN QUEDA REGISTRADA EN EL NODO CENTRAL.</p>
             </div>
-            <div className="flex justify-center">
-              <button onClick={() => setViewDossier(false)} className="w-full md:w-auto px-16 py-6 font-black text-sm uppercase transition-all hover:scale-105 active:scale-95 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)]" style={{ backgroundColor: 'var(--accent)', color: 'white' }}>ACEPTAR PROTOCOLO</button>
-            </div>
+            <button onClick={() => setViewDossier(false)} className="w-full md:w-auto px-16 py-6 font-black text-sm uppercase shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)]" style={{ backgroundColor: 'var(--accent)', color: 'white' }}>ACEPTAR PROTOCOLO</button>
           </motion.div>
         ) : (
           <motion.div key="inv" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1 }} className="text-center p-8 md:p-12 w-full max-w-md border-4 border-black dark:border-white bg-white dark:bg-black text-black dark:text-white shadow-[15px_15px_0px_0px_rgba(var(--accent-rgb), 1)]">
             <h1 className="text-5xl md:text-6xl font-black italic uppercase mb-2">SECTOR <span style={{ color: 'var(--accent)' }}>0</span></h1>
-            <form onSubmit={async(e:any)=>{e.preventDefault();setLoading(true);const {error}=isRegistering?await supabase.auth.signUp({email,password}):await supabase.auth.signInWithPassword({email,password});if(error)alert(error.message);setLoading(false);}} className="space-y-4 my-10"><input type="email" placeholder="EMAIL" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs outline-none focus:border-[var(--accent)]" value={email} onChange={e=>setEmail(e.target.value)} required /><input type="password" placeholder="PASSWORD" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs outline-none focus:border-[var(--accent)]" value={password} onChange={(e) => setPassword(e.target.value)} required /><button type="submit" className="w-full py-5 font-black text-xs uppercase text-white" style={{backgroundColor:'var(--accent)'}}>{isRegistering?'Registrar':'Acceder'}</button></form>
+            <form onSubmit={async(e:any)=>{e.preventDefault();setLoading(true);const {error}=isRegistering?await supabase.auth.signUp({email,password}):await supabase.auth.signInWithPassword({email,password});if(error)alert(error.message);setLoading(false);}} className="space-y-4 my-10"><input type="email" placeholder="EMAIL" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs outline-none focus:border-[var(--accent)]" value={email} onChange={e=>setEmail(e.target.value)} required /><input type="password" placeholder="PASSWORD" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs outline-none focus:border-[var(--accent)]" value={password} onChange={(e) => setPassword(e.target.value)} required /><button type="submit" className="w-full py-5 font-black text-xs uppercase text-white" style={{backgroundColor:'var(--accent)'}}>{isRegistering?'Registrar Agente':'Acceder al Nodo'}</button></form>
             <button onClick={()=>setIsRegistering(!isRegistering)} className="text-[11px] font-black uppercase" style={{color:'var(--accent)'}}>{isRegistering?'[ VOLVER ]':'[ NUEVA SOLICITUD ]'}</button>
           </motion.div>
         )}
@@ -364,6 +387,7 @@ export default function Home() {
         <main className="flex-1 flex flex-col bg-white dark:bg-black overflow-hidden relative mb-20 md:mb-0">
           <AnimatePresence mode="wait">
             
+            {/* [A] FRECUENCIA */}
             {activeTab === 'chat' && (
               <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col h-full relative text-current">
                 <div className="p-3 border-b-4 border-black dark:border-white bg-black/5 flex items-center justify-between"><div className="flex items-center gap-3"><span className="text-[8px] font-black uppercase opacity-40">Agentes:</span><div className="flex -space-x-2">{activeAgents.map((a, i) => (<div key={i} className="w-7 h-7 border-2 border-black overflow-hidden bg-white shrink-0"><img src={a.avatar} className="w-full h-full object-cover" alt="ag" /></div>))}</div></div></div>
@@ -384,16 +408,17 @@ export default function Home() {
                   <div ref={chatEndRef} />
                 </div>
                 {showScrollBtn && (<button onClick={() => scrollToBottom()} className="absolute bottom-[100px] right-8 p-3 border-4 border-black dark:border-white bg-white dark:bg-black shadow-[4px_4px_0px_0px_rgba(var(--accent-rgb),1)] animate-bounce"><ChevronDown style={{ color: 'var(--accent)' }} size={20} /></button>)}
-                <div className="p-4 md:p-6 border-t-4 border-black dark:border-white flex gap-3 bg-white dark:bg-black"><input placeholder="TRANSMITIR..." className="flex-1 bg-transparent p-4 text-[10px] font-black outline-none border-2 border-transparent focus:border-black dark:focus:border-white uppercase text-black dark:text-white" value={messageInput} onChange={e=>setMessageInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&(async()=>{if(!messageInput.trim())return;await supabase.from('general_messages').insert({user_id:user.id,content:messageInput});setMessageInput('');scrollToBottom();})()} /><button onClick={async()=>{if(!messageInput.trim())return;await supabase.from('general_messages').insert({user_id:user.id,content:messageInput});setMessageInput('');scrollToBottom();}} className="px-8 py-2 text-[10px] font-black uppercase text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)]" style={{ backgroundColor: 'var(--accent)' }}>Enviar</button></div>
+                <div className="p-4 md:p-6 border-t-4 border-black dark:border-white flex gap-3 bg-white dark:bg-black"><input placeholder="TRANSMITIR..." className="flex-1 bg-transparent p-4 text-[10px] font-black outline-none border-2 border-transparent focus:border-black dark:focus:border-white uppercase text-black dark:text-white" value={messageInput} onChange={e=>setMessageInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&(async()=>{if(!messageInput.trim())return;await supabase.from('general_messages').insert({user_id:user.id,content:messageInput});setMessageInput('');scrollToBottom();})()} /><button onClick={async()=>{if(!messageInput.trim())return;await supabase.from('general_messages').insert({user_id:user.id,content:messageInput});setMessageInput('');scrollToBottom();}} className="px-8 py-2 text-[10px] font-black uppercase text-white" style={{ backgroundColor: 'var(--accent)' }}>Enviar</button></div>
               </motion.div>
             )}
 
+            {/* [B] CLANES (MODO ADMIN Y MODO AGENTE) */}
             {activeTab === 'clans' && (
               <motion.div key="cl" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 p-6 md:p-12 overflow-y-auto no-scrollbar text-left text-current">
                 {(isAdmin && isAdminView) ? (
                   <div className="space-y-12">
-                    <h2 className="text-4xl font-black italic uppercase border-b-4 border-black dark:border-white pb-6 tracking-tighter">Admin_Overlord_Facciones</h2>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <h2 className="text-4xl font-black italic uppercase border-b-4 border-black dark:border-white pb-6 tracking-tighter text-current">Overlord_Clanes</h2>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 text-current">
                        {allClansAdmin.map(clan => (
                          <div key={clan.id} className="p-6 border-4 border-black dark:border-white bg-black/5 space-y-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)]">
                             <div className="flex justify-between items-start"><div><p className="text-[10px] font-black opacity-30 uppercase">Nodo</p><h3 className="text-2xl font-black uppercase">{clan.name}</h3></div><div className="flex gap-2"><button onClick={() => adminEditClanBalance(clan.id, clan.balance)} className="p-2 border-2 border-black bg-white hover:bg-black hover:text-white"><Edit3 size={14}/></button><button onClick={() => adminDeleteClan(clan.id)} className="p-2 border-2 border-black bg-red-600 text-white"><Trash2 size={14}/></button></div></div>
@@ -404,13 +429,14 @@ export default function Home() {
                     </div>
                   </div>
                 ) : myClan ? (
-                  <div className="space-y-10"><div className="p-10 border-4 border-black dark:border-white bg-black/5 text-center relative shadow-[10px_10px_0px_0px_rgba(var(--accent-rgb),1)]"><p className="text-[10px] font-black uppercase mb-4 tracking-widest opacity-40">Facción: {myClan.name}</p><h2 className="text-6xl md:text-8xl font-black" style={{ color: 'var(--accent)' }}>${myClan.balance?.toLocaleString()}</h2><button onClick={leaveClan} className="mt-8 flex items-center gap-2 mx-auto text-[9px] font-black text-red-600 border-2 border-red-600 px-4 py-2 hover:bg-red-600 hover:text-white transition-all uppercase"><UserMinus size={14}/> Abandonar Facción</button></div><div className="border-2 border-black dark:border-white divide-y-2 bg-white dark:bg-black text-left">{clanMembers.map(m => (<div key={m.profiles.id} className="p-4 flex justify-between items-center text-black dark:text-white"><div className="flex items-center gap-3"><Avatar src={m.profiles.avatar_url} color={m.profiles.name_color} size="w-8 h-8" /><p className="text-[11px] font-black uppercase" style={{color: m.profiles.name_color}}>@{m.profiles.minecraft_name}</p></div><p className="text-[9px] font-bold opacity-30 uppercase">{m.role}</p></div>))}</div></div>
+                  <div className="space-y-10"><div className="p-10 border-4 border-black dark:border-white bg-black/5 text-center relative shadow-[10px_10px_0px_0px_rgba(var(--accent-rgb),1)]"><p className="text-[10px] font-black uppercase mb-4 tracking-widest opacity-40">Nodo: {myClan.name}</p><h2 className="text-6xl md:text-8xl font-black" style={{ color: 'var(--accent)' }}>${myClan.balance?.toLocaleString()}</h2><button onClick={leaveClan} className="mt-8 flex items-center gap-2 mx-auto text-[9px] font-black text-red-600 border-2 border-red-600 px-4 py-2 hover:bg-red-600 hover:text-white transition-all uppercase"><UserMinus size={14}/> Abandonar Facción</button></div><div className="border-2 border-black dark:border-white divide-y-2 bg-white dark:bg-black text-left">{clanMembers.map(m => (<div key={m.profiles.id} className="p-4 flex justify-between items-center text-black dark:text-white"><div className="flex items-center gap-3"><Avatar src={m.profiles.avatar_url} color={m.profiles.name_color} size="w-8 h-8" /><p className="text-[11px] font-black uppercase" style={{color: m.profiles.name_color}}>@{m.profiles.minecraft_name}</p></div><p className="text-[9px] font-bold opacity-30 uppercase">{m.role}</p></div>))}</div></div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-12 text-left text-current"><div className="space-y-8"><p className="text-[10px] font-black opacity-30 uppercase">Facciones_Activas</p><div className="flex border-4 border-black dark:border-white shadow-[6px_6px_0px_0px_rgba(var(--accent-rgb),1)] bg-white dark:bg-black mb-6"><input placeholder="BUSCAR..." className="flex-1 p-5 bg-transparent outline-none font-bold text-xs" value={clanSearchQuery} onChange={e => setClanSearchQuery(e.target.value)} /><button onClick={() => { supabase.from('clans').select('*').ilike('name', `%${clanSearchQuery}%`).then(({data}) => setAvailableClans(data || [])) }} className="p-5 bg-black dark:bg-white text-white dark:text-black"><Search size={20} /></button></div><div className="space-y-4">{availableClans.map(c => (<div key={c.id} className="p-4 border-2 border-black dark:border-white flex justify-between items-center bg-black/5 dark:bg-white/5"><span className="font-black text-[10px] uppercase">{c.name}</span><button onClick={() => joinClan(c.id)} className="text-[9px] font-black border-2 border-black dark:border-white px-3 py-1 hover:text-white transition-all" style={{ backgroundColor: 'var(--accent)', color: 'white' }}>UNIRSE</button></div>))}</div></div><div className="space-y-8 text-center text-current"><p className="text-[10px] font-black opacity-30 uppercase text-center">Registrar_Nodo</p><input placeholder="NOMBRE..." className="w-full p-5 border-4 border-black dark:border-white bg-transparent font-black uppercase outline-none focus:border-[var(--accent)]" value={newClanName} onChange={e => setNewClanName(e.target.value)} /><button onClick={createClan} className="w-full py-6 text-white font-black text-[10px] uppercase shadow-[8px_8px_0px_0px_rgba(var(--accent-rgb), 1)]" style={{ backgroundColor: 'var(--accent)' }}>Fundar Clan</button></div></div>
                 )}
               </motion.div>
             )}
 
+            {/* [C] RADIO CON MONITOREO Y MEZCLADOR */}
             {activeTab === 'voice' && (
               <motion.div key="vox" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col p-6 md:p-12 overflow-y-auto no-scrollbar text-current">
                 <div className="max-w-4xl mx-auto w-full space-y-10 text-left">
@@ -439,7 +465,7 @@ export default function Home() {
                     <div className="space-y-8 p-8 border-4 border-black dark:border-white bg-black/5 text-left">
                        <h3 className="font-black uppercase text-xs flex items-center gap-2"><Settings2 size={16}/> Calibración_Audio</h3>
                        <div className="space-y-6">
-                          <div className="space-y-2"><label className="text-[9px] font-black uppercase opacity-40 block text-current">Micrófono</label><select value={selectedInput} onChange={(e) => setSelectedInput(e.target.value)} className="w-full p-4 bg-white dark:bg-black border-2 border-black font-black text-[10px] uppercase outline-none">{devices.filter(d => d.kind === 'audioinput').map(d => (<option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0,5)}`}</option>))}</select></div>
+                          <div className="space-y-2"><label className="text-[9px] font-black uppercase opacity-40 block">Micrófono</label><select value={selectedInput} onChange={(e) => setSelectedInput(e.target.value)} className="w-full p-4 bg-white dark:bg-black border-2 border-black font-black text-[10px] uppercase outline-none">{devices.filter(d => d.kind === 'audioinput').map(d => (<option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0,5)}`}</option>))}</select></div>
                           <div className="pt-4 space-y-4 border-t-2 border-black/10 text-center">
                              <div className="flex gap-2">
                                 <button onClick={startSoundTest} className={`flex-1 py-2 border-2 border-black font-black text-[9px] uppercase ${isTesting ? 'bg-green-500 text-white' : 'hover:bg-black hover:text-white'} transition-all`}>{isTesting ? "MODO ESCUCHA" : "INICIAR MONITOREO"}</button>
@@ -454,38 +480,57 @@ export default function Home() {
               </motion.div>
             )}
 
+            {/* [D] SUGERENCIAS CON VOTOS (%) */}
             {activeTab === 'suggestions' && (
               <motion.div key="sug" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col h-full bg-black/5 text-left text-current">
-                <div className="p-4 border-b-4 border-black dark:border-white bg-white dark:bg-black flex justify-between items-center"><h2 className="text-xl font-black uppercase italic">Protocolo_Sugerencias</h2><BarChart3 size={18} className="opacity-20" /></div>
+                <div className="p-4 border-b-4 border-black dark:border-white bg-white dark:bg-black flex justify-between items-center text-current"><h2 className="text-xl font-black uppercase italic">Protocolo_Sugerencias</h2><BarChart3 size={18} className="opacity-20" /></div>
                 <div className="flex-1 p-6 overflow-y-auto space-y-6 no-scrollbar">
                   {suggestions.map((s, i) => {
                     const upCount = s.upvotes?.length || 0, downCount = s.downvotes?.length || 0, total = upCount + downCount;
                     const ratio = total === 0 ? 0 : Math.round((upCount / total) * 100);
                     const canDelete = s.user_id === user?.id || (isAdmin && isAdminView);
                     return (
-                      <div key={i} className="p-6 border-4 border-black dark:border-white bg-white dark:bg-black flex flex-col gap-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.05)]">
-                        <div className="flex justify-between items-start"><div className="flex items-center gap-3"><Avatar src={s.profiles?.avatar_url} color={s.profiles?.name_color} size="w-8 h-8" /><span className="text-[9px] font-black uppercase" style={{ color: s.profiles?.name_color }}>@{s.profiles?.minecraft_name}</span></div>{canDelete && <button onClick={() => deleteEntry(s.id, 'suggestions')} className="text-red-600"><Trash2 size={14}/></button>}</div>
-                        <p className="text-xs font-bold opacity-80 leading-relaxed">{s.content}</p>
-                        <div className="flex flex-col md:flex-row md:items-center gap-6 pt-4 border-t-2 border-black/5">
-                           <div className="flex gap-2"><button onClick={() => voteSuggestion(s.id, 'up')} className={`flex items-center gap-2 p-2 border-2 border-black font-black text-[9px] ${s.upvotes?.includes(user?.id) ? 'bg-green-500 text-white' : ''}`}><ThumbsUp size={12}/> {upCount}</button><button onClick={() => voteSuggestion(s.id, 'down')} className={`flex items-center gap-2 p-2 border-2 border-black font-black text-[9px] ${s.downvotes?.includes(user?.id) ? 'bg-red-500 text-white' : ''}`}><ThumbsDown size={12}/> {downCount}</button></div>
-                           <div className="flex-1 space-y-2"><div className="flex justify-between items-center text-[9px] font-black uppercase"><span className="opacity-40">Ratio_Aceptación</span><span style={{ color: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }}>{ratio}%</span></div><div className="h-2 bg-black/10 rounded-full overflow-hidden flex"><motion.div initial={{ width: 0 }} animate={{ width: `${ratio}%` }} className="h-full" style={{ backgroundColor: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }} /></div></div>
+                      <div key={i} className="p-6 border-4 border-black dark:border-white bg-white dark:bg-black flex flex-col gap-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.05)] text-current">
+                        <div className="flex justify-between items-start text-current"><div className="flex items-center gap-3"><Avatar src={s.profiles?.avatar_url} color={s.profiles?.name_color} size="w-8 h-8" /><span className="text-[9px] font-black uppercase" style={{ color: s.profiles?.name_color }}>@{s.profiles?.minecraft_name}</span></div>{canDelete && <button onClick={() => deleteEntry(s.id, 'suggestions')} className="text-red-600"><Trash2 size={14}/></button>}</div>
+                        <p className="text-xs font-bold opacity-80 leading-relaxed text-current">{s.content}</p>
+                        <div className="flex flex-col md:flex-row md:items-center gap-6 pt-4 border-t-2 border-black/5 text-current">
+                           <div className="flex gap-2 text-current"><button onClick={() => voteSuggestion(s.id, 'up')} className={`flex items-center gap-2 p-2 border-2 border-black font-black text-[9px] ${s.upvotes?.includes(user?.id) ? 'bg-green-500 text-white' : ''}`}><ThumbsUp size={12}/> {upCount}</button><button onClick={() => voteSuggestion(s.id, 'down')} className={`flex items-center gap-2 p-2 border-2 border-black font-black text-[9px] ${s.downvotes?.includes(user?.id) ? 'bg-red-500 text-white' : ''}`}><ThumbsDown size={12}/> {downCount}</button></div>
+                           <div className="flex-1 space-y-2 text-current"><div className="flex justify-between items-center text-[9px] font-black uppercase"><span className="opacity-40">Ratio_Aceptación</span><span style={{ color: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }}>{ratio}%</span></div><div className="h-2 bg-black/10 rounded-full overflow-hidden flex"><motion.div initial={{ width: 0 }} animate={{ width: `${ratio}%` }} className="h-full" style={{ backgroundColor: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }} /></div></div>
                         </div>
                       </div>
                     )
                   })}
                 </div>
-                <div className="p-6 border-t-4 border-black dark:border-white bg-white dark:bg-black flex gap-4"><input placeholder="TRANS_MEJORA..." className="flex-1 bg-transparent p-4 text-[10px] font-black outline-none border-2 border-black focus:border-[var(--accent)] uppercase" value={suggestionInput} onChange={e => setSuggestionInput(e.target.value)} /><button onClick={sendSuggestion} className="px-10 py-2 text-[10px] font-black uppercase text-white shadow-[8px_8px_0px_0px_rgba(var(--accent-rgb),0.2)]" style={{ backgroundColor: 'var(--accent)' }}>Enviar</button></div>
+                <div className="p-6 border-t-4 border-black dark:border-white bg-white dark:bg-black flex gap-4"><input placeholder="TRANS_MEJORA..." className="flex-1 bg-transparent p-4 text-[10px] font-black outline-none border-2 border-black focus:border-[var(--accent)] uppercase text-black dark:text-white" value={suggestionInput} onChange={e => setSuggestionInput(e.target.value)} /><button onClick={sendSuggestion} className="px-10 py-2 text-[10px] font-black uppercase text-white shadow-[8px_8px_0px_0px_rgba(var(--accent-rgb),0.2)]" style={{ backgroundColor: 'var(--accent)' }}>Enviar</button></div>
               </motion.div>
             )}
 
-            {/* [D] MENSAJERÍA PRIVADA (FIXED LOGIC) */}
+            {/* [E] MODS (RESTAURADO AL COMPLETO) */}
+            {activeTab === 'mods' && (
+              <motion.div key="mods" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 p-6 md:p-12 overflow-y-auto no-scrollbar text-left text-current">
+                <h2 className="text-4xl font-black italic uppercase border-b-4 border-black dark:border-white pb-6 mb-10 tracking-tighter">Base_Datos_Mods_1.12.2</h2>
+                {modCategories.map((cat, i) => (
+                  <div key={i} className="space-y-4 mb-10">
+                    <h3 className="text-[11px] font-black uppercase tracking-[0.3em] flex items-center gap-2" style={{ color: 'var(--accent)' }}><Circle size={8} fill="currentColor"/> {cat.title}</h3>
+                    {cat.mods.map((mod, j) => (
+                      <div key={j} className="border-2 border-black dark:border-white group">
+                        <button onClick={() => setExpandedMod(expandedMod === mod.name ? null : mod.name)} className="w-full p-4 flex justify-between font-black uppercase text-[10px] group-hover:bg-black/5 transition-all text-left"><span>{mod.name}</span><ChevronDown size={14} className={expandedMod === mod.name ? 'rotate-180' : ''}/></button>
+                        {expandedMod === mod.name && <p className="p-4 pt-0 text-[10px] font-bold opacity-60 border-t-2 border-black/5 leading-relaxed">{mod.desc}</p>}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </motion.div>
+            )}
+
+            {/* MENSAJERÍA, BIZUM, AJUSTES (MANTENIDOS) */}
             {activeTab === 'messages' && (
               <motion.div key="ms" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col h-full bg-black/5 text-current">
                 {!selectedUser ? (
                   <div className="flex-1 flex flex-col p-6 md:p-10 overflow-y-auto no-scrollbar"><p className="text-[10px] font-black uppercase tracking-[0.4em] mb-10 opacity-30 text-center text-current">Canales_Privados</p><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{onlineUsers.filter(u => u.id !== user?.id).map(u => (<div key={u.id} className="p-5 border-2 border-black dark:border-white bg-white dark:bg-black hover:border-[var(--accent)] transition-all group"><div className="flex items-center gap-4 mb-4 text-left"><Avatar src={u.avatar_url} color={u.name_color} size="w-10 h-10" /><div className="flex flex-col min-w-0 text-current text-left"><span className="text-[11px] font-black uppercase truncate" style={{color: u.name_color}}>@{u.minecraft_name}</span><span className="text-[8px] font-bold opacity-30 uppercase">ID: {u.id.substring(0,8)}</span></div></div><button onClick={() => { setSelectedUser(u); fetchPrivateMessages(u.id); }} className="w-full py-2 border-2 border-black dark:border-white text-[9px] font-black uppercase hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all">Abrir Canal</button></div>))}</div></div>
                 ) : (
                   <div className="flex-1 flex flex-col h-full bg-white dark:bg-black">
-                    <div className="p-4 border-b-4 border-black dark:border-white flex justify-between items-center text-black dark:text-white"><div className="flex items-center gap-3"><Avatar src={selectedUser.avatar_url} color={selectedUser.name_color} size="w-8 h-8" /><span className="font-black uppercase text-[10px]" style={{color: selectedUser.name_color}}>@{selectedUser.minecraft_name} [SEGURIZADO]</span></div><button onClick={() => setSelectedUser(null)} className="text-[9px] font-black opacity-30 hover:opacity-100 underline">VOLVER</button></div>
+                    <div className="p-4 border-b-4 border-black dark:border-white flex justify-between items-center text-black dark:text-white"><div className="flex items-center gap-3"><Avatar src={selectedUser.avatar_url} color={selectedUser.name_color} size="w-8 h-8" /><span className="font-black uppercase text-[10px]" style={{color: selectedUser.name_color}}>@{selectedUser.minecraft_name} [ENLACE]</span></div><button onClick={() => setSelectedUser(null)} className="text-[9px] font-black opacity-30 hover:opacity-100 underline">VOLVER</button></div>
                     <div className="flex-1 p-6 overflow-y-auto space-y-4 no-scrollbar text-left">{privateMessages.map((m, i) => (<div key={i} className={`flex flex-col ${m.sender_id === user?.id ? 'items-end' : 'items-start'}`}><div className={`p-4 border-2 border-black dark:border-white text-[11px] font-bold max-w-[80%] ${m.sender_id === user?.id ? 'text-white border-transparent shadow-[4px_4px_0px_0px_rgba(var(--accent-rgb),1)]' : 'bg-white dark:bg-black'}`} style={m.sender_id === user?.id ? { backgroundColor: 'var(--accent)' } : {}}>{m.content}</div></div>))}</div>
                     <div className="p-4 border-t-4 border-black dark:border-white flex gap-3 bg-white dark:bg-black"><input placeholder="TRANSMITIR..." className="flex-1 bg-transparent p-4 text-[10px] font-black outline-none border-2 border-transparent focus:border-black dark:focus:border-white uppercase text-black dark:text-white" value={privateInput} onChange={e => setPrivateInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendPrivateMessage()} /><button onClick={sendPrivateMessage} className="px-6 py-2 text-[10px] font-black uppercase text-white" style={{ backgroundColor: 'var(--accent)' }}><SendHorizonal size={16}/></button></div>
                   </div>
@@ -493,21 +538,16 @@ export default function Home() {
               </motion.div>
             )}
 
-            {/* MODS, DASHBOARD, BIZUM, AJUSTES (RESTO) */}
-            {activeTab === 'mods' && (
-              <motion.div key="mods" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 p-6 md:p-12 overflow-y-auto no-scrollbar text-left text-current"><h2 className="text-4xl font-black italic uppercase border-b-4 border-black dark:border-white pb-6 mb-10 tracking-tighter">Protocolo_Mods</h2>{modCategories.map((cat, i) => (<div key={i} className="space-y-4 mb-10"><h3 className="text-[11px] font-black uppercase tracking-[0.3em] flex items-center gap-2" style={{ color: 'var(--accent)' }}><Circle size={8} fill="currentColor"/> {cat.title}</h3>{cat.mods.map((mod, j) => (<div key={j} className="border-2 border-black dark:border-white group"><button onClick={() => setExpandedMod(expandedMod === mod.name ? null : mod.name)} className="w-full p-4 flex justify-between font-black uppercase text-[10px] group-hover:bg-black/5 transition-all text-left"><span>{mod.name}</span><ChevronDown size={14} className={expandedMod === mod.name ? 'rotate-180' : ''}/></button>{expandedMod === mod.name && <p className="p-4 pt-0 text-[10px] font-bold opacity-60 border-t-2 border-black/5 leading-relaxed">{mod.desc}</p>}</div>))}</div>))}</motion.div>
-            )}
-
             {activeTab === 'transfer' && (
-              <motion.div key="tr" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col items-center justify-center p-6 text-center text-current"><form onSubmit={handleTransfer} className="w-full max-w-md space-y-10"><h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter leading-none">Autorizar_Bizum</h2><div className="space-y-6"><input required placeholder="NICK_RECEPTOR" value={form.mcName} onChange={e => setForm({...form, mcName: e.target.value})} className="w-full bg-transparent border-2 border-black dark:border-white p-5 font-black uppercase text-center outline-none focus:border-[var(--accent)]" /><input required type="number" placeholder="0.00" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="w-full bg-transparent border-2 border-black dark:border-white p-6 font-black text-6xl md:text-7xl text-center outline-none focus:border-[var(--accent)]" /></div><button className="w-full py-8 text-white font-black text-xs uppercase shadow-[8px_8px_0px_0px_rgba(var(--accent-rgb),1)]" style={{ backgroundColor: 'var(--accent)' }}>Ejecutar Bizum</button></form></motion.div>
+              <motion.div key="tr" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col items-center justify-center p-6 text-center text-current"><form onSubmit={handleTransfer} className="w-full max-w-md space-y-10"><h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter leading-none text-current">Autorizar_Bizum</h2><div className="space-y-6"><input required placeholder="NICK_RECEPTOR" value={form.mcName} onChange={e => setForm({...form, mcName: e.target.value})} className="w-full bg-transparent border-2 border-black dark:border-white p-5 font-black uppercase text-center outline-none focus:border-[var(--accent)] text-current" /><input required type="number" placeholder="0.00" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="w-full bg-transparent border-2 border-black dark:border-white p-6 font-black text-6xl md:text-7xl text-center outline-none focus:border-[var(--accent)] text-current" /></div><button className="w-full py-8 text-white font-black text-xs uppercase shadow-[8px_8px_0px_0px_rgba(var(--accent-rgb),1)]" style={{ backgroundColor: 'var(--accent)' }}>Ejecutar Bizum</button></form></motion.div>
             )}
 
             {activeTab === 'settings' && (
-              <motion.div key="st" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 p-6 md:p-12 overflow-y-auto no-scrollbar text-current"><div className="max-w-2xl mx-auto space-y-12 text-left"><h2 className="text-4xl font-black italic uppercase">Terminal_Config</h2><div className="p-8 border-4 border-black dark:border-white bg-black/5 flex flex-col md:flex-row items-center gap-8"><Avatar src={profile?.avatar_url} color={profile?.name_color} size="w-32 h-32" /><label className="p-4 border-4 border-black dark:border-white bg-white dark:bg-black font-black text-[10px] cursor-pointer hover:bg-[var(--accent)] hover:text-white transition-all uppercase">SUBIR ARCHIVO<input type="file" className="hidden" onChange={uploadAvatar}/></label></div><div className="grid grid-cols-1 md:grid-cols-2 gap-8"><div className="space-y-4"><p className="text-[10px] font-black uppercase opacity-40">Nick_MC</p><input value={tempNick} onChange={(e) => setTempNick(e.target.value)} className="w-full p-5 border-4 border-black dark:border-white bg-transparent font-black uppercase text-xs outline-none focus:border-[var(--accent)]" /></div><div className="space-y-4"><p className="text-[10px] font-black uppercase opacity-40">Color_Nombre</p><input type="color" value={nameColor} onChange={(e) => setNameColor(e.target.value)} className="w-full h-[58px] bg-transparent border-4 border-black dark:border-white p-1 cursor-pointer" /></div></div><button onClick={saveProfileSettings} disabled={saving} className="w-full py-6 text-white font-black text-xs uppercase shadow-[8px_8px_0px_0px_rgba(var(--accent-rgb),1)]" style={{ backgroundColor: 'var(--accent)' }}>{saving ? "PROCESANDO..." : "GUARDAR"}</button></div></motion.div>
+              <motion.div key="st" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 p-6 md:p-12 overflow-y-auto no-scrollbar text-current"><div className="max-w-2xl mx-auto space-y-12 text-left"><h2 className="text-4xl font-black italic uppercase text-current">Terminal_Config</h2><div className="p-8 border-4 border-black dark:border-white bg-black/5 flex flex-col md:flex-row items-center gap-8"><Avatar src={profile?.avatar_url} color={profile?.name_color} size="w-32 h-32" /><label className="p-4 border-4 border-black dark:border-white bg-white dark:bg-black font-black text-[10px] cursor-pointer hover:bg-[var(--accent)] hover:text-white transition-all uppercase text-current">SUBIR ARCHIVO<input type="file" className="hidden" onChange={uploadAvatar}/></label></div><div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-current"><div className="space-y-4"><p className="text-[10px] font-black uppercase opacity-40">Nick_MC</p><input value={tempNick} onChange={(e) => setTempNick(e.target.value)} className="w-full p-5 border-4 border-black dark:border-white bg-transparent font-black uppercase text-xs outline-none focus:border-[var(--accent)] text-current" /></div><div className="space-y-4"><p className="text-[10px] font-black uppercase opacity-40">Color_Nombre</p><input type="color" value={nameColor} onChange={(e) => setNameColor(e.target.value)} className="w-full h-[58px] bg-transparent border-4 border-black dark:border-white p-1 cursor-pointer" /></div></div><button onClick={saveProfileSettings} disabled={saving} className="w-full py-6 text-white font-black text-xs uppercase shadow-[8px_8px_0px_0px_rgba(var(--accent-rgb),1)]" style={{ backgroundColor: 'var(--accent)' }}>{saving ? "PROCESANDO..." : "GUARDAR"}</button></div></motion.div>
             )}
 
             {activeTab === 'overview' && (
-              <motion.div key="ov" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col items-center justify-center p-6 text-center text-current"><Avatar src={profile?.avatar_url} color={profile?.name_color} size="w-32 h-32" /><h2 className="text-7xl md:text-9xl font-black tracking-tighter mt-10"><span style={{ color: 'var(--accent)' }} className="text-3xl md:text-5xl align-top mr-4">$</span>{profile?.balance?.toLocaleString() || 0}</h2><p className="text-[10px] font-black uppercase opacity-20 tracking-[1em] mt-4">Activos_Totales_S0</p></motion.div>
+              <motion.div key="ov" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col items-center justify-center p-6 text-center text-current"><Avatar src={profile?.avatar_url} color={profile?.name_color} size="w-32 h-32" /><h2 className="text-7xl md:text-9xl font-black tracking-tighter mt-10 text-current"><span style={{ color: 'var(--accent)' }} className="text-3xl md:text-5xl align-top mr-4">$</span>{profile?.balance?.toLocaleString() || 0}</h2></motion.div>
             )}
 
           </AnimatePresence>
