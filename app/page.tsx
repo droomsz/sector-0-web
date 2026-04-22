@@ -345,10 +345,10 @@ export default function Home() {
             </div>
             {/* TEXTO FORZADO A CONTRASTE TOTAL */}
             <div className="space-y-6 font-bold text-[12px] md:text-[14px] uppercase border-l-4 pl-6 md:pl-10 mb-12 py-6 bg-black/5 dark:bg-white/5 text-left leading-relaxed text-black dark:text-white" style={{ borderColor: 'var(--accent)' }}>
-              <p>— TERMINAL DE CONTROL FINANCIERO Y FACCIONES ACTIVA.</p>
-              <p>— LA IDENTIDAD DEBE SER VINCULADA PARA OPERAR EN RED.</p>
-              <p>— CUALQUIER ACCIÓN QUEDA REGISTRADA EN EL NODO CENTRAL.</p>
-              <p>— EL ACCESO IMPLICA LA ACEPTACIÓN DEL CÓDIGO DE AGENTE.</p>
+              <p>— Servidor de miecraft con multiples mods.</p>
+              <p>— El servidor iniciara probablemente tras los examenes finales, habrá votación.</p>
+              <p>— puedes cambiar tus ajustes en la seccion de configuración.</p>
+              <p>— cualquier duda o sugerencia puede ser escrita en los canales de texto de la página web</p>
             </div>
             <div className="flex justify-center">
               <button onClick={() => setViewDossier(false)} className="w-full md:w-auto px-16 py-6 font-black text-sm uppercase transition-all hover:scale-105 active:scale-95 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)]" style={{ backgroundColor: 'var(--accent)', color: 'white' }}>
