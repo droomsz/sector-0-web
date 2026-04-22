@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Wallet, Send, Shield, MessageSquare, 
   Sun, Moon, Circle, Search, ArrowRight, Globe, LogOut, Trophy,
-  ChevronLeft, ChevronRight, User, SendHorizonal
+  ChevronLeft, ChevronRight, SendHorizonal, AlertCircle
 } from 'lucide-react'
 
 export default function Home() {
@@ -16,7 +16,11 @@ export default function Home() {
   const [profile, setProfile] = useState<any>(null)
   const [activeTab, setActiveTab] = useState('chat')
   const [loading, setLoading] = useState(true)
-  const [viewDossier, setViewDossier] = useState(false)
+  
+  // EL DOSSIER AHORA EMPIEZA COMO TRUE (OBLIGATORIO)
+  const [viewDossier, setViewDossier] = useState(true)
+  const [hasAcceptedProtocol, setHasAcceptedProtocol] = useState(false)
+  
   const [isRegistering, setIsRegistering] = useState(false)
 
   // Paneles
@@ -59,7 +63,7 @@ export default function Home() {
 
   const toggleTheme = () => setTheme(prev => (prev === 'light' ? 'dark' : 'light'))
 
-  // --- 2. LOGICA DE DATOS (FIXED BUILD ERROR) ---
+  // --- 2. LOGICA DE DATOS ---
   const loadData = useCallback(async (currUser: any) => {
     if (!currUser) return;
     const { data: prof } = await supabase.from('profiles').select('*').eq('id', currUser.id).maybeSingle()
@@ -69,14 +73,9 @@ export default function Home() {
       const { data: mem } = await supabase.from('clan_members').select('role, clans(*)').eq('user_id', currUser.id).eq('status', 'accepted').maybeSingle()
       
       if (mem?.clans) {
-        // CORRECCIÓN: Manejar si clans es objeto o array para evitar el error .id
         const clanData = Array.isArray(mem.clans) ? mem.clans[0] : mem.clans;
         setMyClan(clanData);
-        
-        const { data: mbs } = await supabase.from('clan_members')
-          .select('status, role, profiles(id, minecraft_name, name_color)')
-          .eq('clan_id', clanData.id)
-        
+        const { data: mbs } = await supabase.from('clan_members').select('status, role, profiles(id, minecraft_name, name_color)').eq('clan_id', clanData.id)
         if (mbs) setClanMembers(mbs.filter((m: any) => m.status === 'accepted'))
       }
     }
@@ -134,22 +133,6 @@ export default function Home() {
     setMessageInput(''); fetchGlobal()
   }
 
-  const createClan = async () => {
-    if (!newClanName.trim() || !user) return
-    const { data: clan, error } = await supabase.from('clans').insert({ name: newClanName.trim(), owner_id: user.id }).select().single()
-    if (clan) {
-      await supabase.from('clan_members').insert({ clan_id: clan.id, user_id: user.id, status: 'accepted', role: 'leader' })
-      window.location.reload()
-    } else if (error) alert(error.message)
-  }
-
-  const joinClan = async (clanId: string) => {
-    if (!user) return
-    const { error } = await supabase.from('clan_members').insert({ clan_id: clanId, user_id: user.id, status: 'pending', role: 'member' })
-    if (!error) alert("Solicitud enviada al líder.")
-    else alert("Error en la solicitud.")
-  }
-
   const handleTransfer = async (e: any) => {
     e.preventDefault(); setLoading(true)
     const { error } = await supabase.rpc('transfer_by_minecraft', { target_name: form.mcName, amount_to_send: parseFloat(form.amount), sender_id: user.id, transfer_concept: form.concept })
@@ -157,15 +140,49 @@ export default function Home() {
     setLoading(false)
   }
 
-  if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-black dark:text-white text-[10px] uppercase tracking-[1em]">Renderizando_Terminal...</div>
+  if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-black dark:text-white text-[10px] uppercase tracking-[1em]">Iniciando_Sector_0...</div>
 
+  // --- 4. LANDING / LOGIN CON DOSSIER OBLIGATORIO ---
   if (!user) return (
     <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center p-4 transition-colors duration-300">
       <AnimatePresence mode="wait">
-        {!viewDossier ? (
-          <motion.div key="inv" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center p-8 md:p-12 w-full max-w-md border-4 border-black dark:border-white shadow-[15px_15px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black text-black dark:text-white">
+        {viewDossier ? (
+          <motion.div 
+            key="dos" 
+            initial={{ opacity: 0, scale: 0.95 }} 
+            animate={{ opacity: 1, scale: 1 }} 
+            exit={{ opacity: 0, y: -20 }}
+            className="max-w-4xl w-full border-4 border-black dark:border-white p-8 md:p-16 shadow-[20px_20px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black text-black dark:text-white"
+          >
+            <div className="flex items-center gap-4 mb-8">
+              <AlertCircle className="text-orange-600" size={32} />
+              <h3 className="text-3xl md:text-5xl font-black italic uppercase leading-none">Protocolo_Sector_0</h3>
+            </div>
+            
+            <div className="space-y-6 md:space-y-8 font-bold text-[11px] md:text-xs uppercase border-l-4 border-orange-600 pl-8 mb-12 opacity-80 leading-relaxed text-left">
+              <p>— ESTÁS ACCEDIENDO A UNA TERMINAL DE CONTROL FINANCIERO Y FACCIONES.</p>
+              <p>— CUALQUIER TRANSACCIÓN BIZUM ES IRREVERSIBLE UNA POR EL NODO.</p>
+              <p>— LA IDENTIDAD DE MINECRAFT DEBE SER VINCULADA PARA OPERAR.</p>
+              <p>— EL MODO OSCURO ES RECOMENDADO PARA OPERACIONES NOCTURNAS.</p>
+            </div>
+            
+            <button 
+              onClick={() => { setViewDossier(false); setHasAcceptedProtocol(true); }} 
+              className="w-full md:w-auto px-12 py-5 bg-black text-white dark:bg-white dark:text-black font-black text-xs uppercase hover:bg-orange-600 hover:text-white transition-all shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)]"
+            >
+              ACEPTAR PROTOCOLO Y ENTRAR
+            </button>
+          </motion.div>
+        ) : (
+          <motion.div 
+            key="inv" 
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            className="text-center p-8 md:p-12 w-full max-w-md border-4 border-black dark:border-white shadow-[15px_15px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black text-black dark:text-white"
+          >
             <h1 className="text-5xl md:text-6xl font-black italic uppercase mb-2 leading-none">SECTOR <span className="text-orange-600">0</span></h1>
-            <p className="text-[9px] font-black uppercase tracking-[0.4em] mb-10 opacity-40">Identidad_Red_V45</p>
+            <p className="text-[9px] font-black uppercase tracking-[0.4em] mb-10 opacity-40">Identidad_Verificada</p>
+            
             <form onSubmit={handleAuth} className="space-y-4 mb-10">
               <input type="email" placeholder="EMAIL" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs outline-none focus:border-orange-600 text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20" value={email} onChange={(e) => setEmail(e.target.value)} required />
               <input type="password" placeholder="PASSWORD" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs outline-none focus:border-orange-600 text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20" value={password} onChange={(e) => setPassword(e.target.value)} required />
@@ -174,19 +191,12 @@ export default function Home() {
                 {isRegistering ? 'Confirmar Registro' : 'Inicializar Sesión'}
               </button>
             </form>
+            
             <div className="flex flex-col gap-6 border-t-2 border-black/10 dark:border-white/10 pt-8">
               <button onClick={() => setIsRegistering(!isRegistering)} className="text-[11px] font-black uppercase text-orange-600 dark:text-orange-500 hover:scale-105 transition-all">
                 {isRegistering ? '[ VOLVER AL LOGIN ]' : '[ SOLICITAR NUEVO ACCESO ]'}
               </button>
-              <button onClick={() => setViewDossier(true)} className="text-[10px] font-black uppercase opacity-30 hover:opacity-100 flex items-center gap-2 mx-auto">Dossier <ArrowRight size={12}/></button>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div key="dos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-white dark:bg-black">
-            <div className="max-w-4xl w-full border-4 border-black dark:border-white p-8 md:p-16 shadow-[20px_20px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black text-black dark:text-white">
-              <h3 className="text-3xl md:text-5xl font-black italic uppercase text-orange-600 mb-8 border-b-2 border-black dark:border-white pb-6 text-left leading-none">Dossier_Sector_0</h3>
-              <p className="font-bold text-[10px] md:text-xs uppercase border-l-4 border-orange-600 pl-8 mb-12 opacity-80 leading-relaxed text-left">— SERVIDOR TÉCNICO: ECONOMÍA Y CONTROL.<br/>— NÚCLEO WEB: BIZUM Y CLANES.<br/>— STATUS: OPERATIVO.</p>
-              <button onClick={() => setViewDossier(false)} className="px-10 py-4 bg-black text-white dark:bg-white dark:text-black font-black text-xs uppercase border-2 border-transparent">Cerrar</button>
+              <button onClick={() => setViewDossier(true)} className="text-[10px] font-black uppercase opacity-30 hover:opacity-100 flex items-center gap-2 mx-auto">Re-leer Dossier <ArrowRight size={12}/></button>
             </div>
           </motion.div>
         )}
@@ -194,6 +204,7 @@ export default function Home() {
     </div>
   )
 
+  // --- 5. VINCULACIÓN DE NICK ---
   if (!profile?.minecraft_name) return (
     <div className="fixed inset-0 bg-white dark:bg-black flex items-center justify-center p-4">
       <div className="text-center space-y-10 w-full max-w-sm border-4 border-black dark:border-white p-10 shadow-[15px_15px_0px_0px_rgba(234,88,12,1)] bg-white dark:bg-black text-black dark:text-white">
@@ -210,6 +221,7 @@ export default function Home() {
     </div>
   )
 
+  // --- 6. CONSOLA PRINCIPAL ---
   return (
     <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center p-0 md:p-10 font-sans text-black dark:text-white transition-colors duration-300">
       
@@ -265,8 +277,8 @@ export default function Home() {
                       <p className="text-[10px] font-black opacity-30 uppercase mb-4 tracking-widest">Facción: {myClan.name}</p>
                       <h2 className="text-6xl md:text-8xl font-black text-orange-600">${myClan.balance?.toLocaleString()}</h2>
                     </div>
-                    <div className="border-2 border-black dark:border-white divide-y-2 divide-black dark:divide-white bg-white dark:bg-black">
-                      <p className="p-4 text-[10px] font-black uppercase opacity-40 bg-black/5 dark:bg-white/5 text-left">Miembros_Nodo</p>
+                    <div className="border-2 border-black dark:border-white divide-y-2 divide-black dark:divide-white bg-white dark:bg-black text-left">
+                      <p className="p-4 text-[10px] font-black uppercase opacity-40 bg-black/5 dark:bg-white/5">Miembros_Nodo</p>
                       {clanMembers.map(m => (
                         <div key={m.profiles.id} className="p-4 flex justify-between items-center text-black dark:text-white">
                           <p className="text-[11px] font-black uppercase" style={{color: m.profiles.name_color}}>@{m.profiles.minecraft_name}</p>
@@ -325,7 +337,7 @@ export default function Home() {
                       ))}
                     </div>
                     <div className="p-4 border-t-4 border-black dark:border-white flex gap-3 bg-white dark:bg-black">
-                      <input placeholder="TRANSMISIÓN_PRIVADA..." className="flex-1 bg-transparent p-4 text-[10px] font-black outline-none border-2 border-transparent focus:border-black dark:focus:border-white uppercase text-black dark:text-white" value={privateInput} onChange={e => setPrivateInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendPrivateMessage()} />
+                      <input placeholder="TRANSMISIÓN_PRIVADA..." className="flex-1 bg-transparent p-4 text-[10px] font-black outline-none border-2 border-transparent focus:border-black dark:focus:border-white uppercase text-black dark:text-white" value={privateInput} onChange={setPrivateInput} onKeyDown={e => e.key === 'Enter' && sendPrivateMessage()} />
                       <button onClick={sendPrivateMessage} className="bg-black text-white dark:bg-white dark:text-black px-6 py-2 text-[10px] font-black uppercase hover:bg-orange-600 transition-all border-2 border-transparent"><SendHorizonal size={16}/></button>
                     </div>
                   </div>
@@ -359,7 +371,7 @@ export default function Home() {
 
         <motion.aside initial={false} animate={{ width: isRankOpen ? 320 : 0, opacity: isRankOpen ? 1 : 0 }} className="hidden md:flex border-l-4 border-black dark:border-white p-8 overflow-y-auto no-scrollbar bg-white dark:bg-black shrink-0 text-left relative overflow-hidden text-black dark:text-white">
           <div className="whitespace-nowrap w-full">
-            <p className="text-[10px] font-black uppercase tracking-[0.4em] mb-10 opacity-30">Status_Global</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.4em] mb-10 opacity-30 text-left">Status_Global</p>
             <div className="space-y-4">
               {onlineUsers.map((u, i) => (
                 <div key={u.id} className={`p-5 border-2 ${i === 0 ? 'border-orange-600 bg-orange-600/5 shadow-[4px_4px_0px_0px_rgba(234,88,12,1)]' : 'border-black/10 dark:border-white/10'} group transition-all hover:border-black dark:hover:border-white bg-white dark:bg-black`}>
