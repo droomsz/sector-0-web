@@ -168,10 +168,10 @@ export default function Home() {
               <h3 className="text-3xl md:text-5xl font-black italic uppercase leading-none">Protocolo_Sector_0</h3>
             </div>
             <div className="space-y-6 md:space-y-8 font-bold text-[11px] md:text-xs uppercase border-l-4 border-orange-600 pl-8 mb-12 opacity-80 leading-relaxed text-left text-current">
-              <p>— ESTÁS ACCEDIENDO A UNA TERMINAL DE CONTROL FINANCIERO Y FACCIONES.</p>
-              <p>— CUALQUIER TRANSACCIÓN BIZUM ES IRREVERSIBLE UNA VEZ PROCESADA.</p>
+              <p>— SERVIDOR DE MINECRAFT CON GRAN VARIEDAD DE MODS</p>
+              <p>— CON SISTEMA ECONÓMICO Y JUZGADOS EN PROCESO.</p>
               <p>— LA IDENTIDAD DE MINECRAFT DEBE SER VINCULADA PARA OPERAR.</p>
-              <p>— EL MODO OSCURO ES RECOMENDADO PARA OPERACIONES NOCTURNAS.</p>
+              <p>— DESCUBRE LA PÁGINA WEB.</p>
             </div>
             <button onClick={() => setViewDossier(false)} className="w-full md:w-auto px-12 py-5 bg-black text-white dark:bg-white dark:text-black font-black text-xs uppercase hover:bg-orange-600 hover:text-white transition-all shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)] border-2 border-transparent">ACEPTAR PROTOCOLO Y ENTRAR</button>
           </motion.div>
