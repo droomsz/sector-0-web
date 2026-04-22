@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight, SendHorizonal, AlertCircle, UserMinus, User, 
   Camera, Upload, Settings, Save, ChevronDown, Users, Package, Lightbulb, Trash2,
   Mic, MicOff, Radio, Volume2, Wifi, Zap, Settings2, Volume1, VolumeX, Headphones, EarOff,
-  ThumbsUp, ThumbsDown, BarChart3, X, Type, CheckCircle2, LayoutGrid, Edit3, UserX, Eye, EyeOff
+  ThumbsUp, ThumbsDown, BarChart3, X, Type, CheckCircle2, LayoutGrid, Edit3, UserX, Eye, EyeOff, SearchCode
 } from 'lucide-react'
 
 export default function Home() {
@@ -41,7 +41,7 @@ export default function Home() {
   const [isRankOpen, setIsRankOpen] = useState(true)
   const [expandedMod, setExpandedMod] = useState<string | null>(null)
 
-  // --- [4] RADIO, VOZ Y HARDWARE ---
+  // --- [4] RADIO Y HARDWARE ---
   const [activeAgents, setActiveAgents] = useState<any[]>([])
   const [voiceAgents, setVoiceAgents] = useState<any[]>([])
   const [isInVoice, setIsInVoice] = useState(false)
@@ -61,7 +61,7 @@ export default function Home() {
   const [privateMessages, setPrivateMessages] = useState<any[]>([])
   const [privateInput, setPrivateInput] = useState('')
 
-  // --- [6] DATOS DE RED Y TRANSACCIONES ---
+  // --- [6] DATOS DE RED, CLANES E INTELIGENCIA ---
   const [generalMessages, setGeneralMessages] = useState<any[]>([])
   const [messageInput, setMessageInput] = useState('')
   const [suggestions, setSuggestions] = useState<any[]>([])
@@ -71,6 +71,8 @@ export default function Home() {
   const [clanMembers, setClanMembers] = useState<any[]>([])
   const [allClansAdmin, setAllClansAdmin] = useState<any[]>([])
   const [availableClans, setAvailableClans] = useState<any[]>([])
+  const [inspectingClan, setInspectingClan] = useState<any>(null) // Para ver miembros de otros clanes
+  const [inspectedMembers, setInspectedMembers] = useState<any[]>([])
   const [clanSearchQuery, setClanSearchQuery] = useState('')
   const [newClanName, setNewClanName] = useState('')
   const [form, setForm] = useState({ mcName: '', amount: '', concept: '' })
@@ -82,9 +84,9 @@ export default function Home() {
     {
       title: "Exploración y Utilidad",
       mods: [
-        { name: "Xaero's Minimap + World Map", desc: "Mapeo de grado militar con radar local." },
+        { name: "Xaero's Minimap + World Map", desc: "Sistemas cartográficos de grado militar con radar local." },
         { name: "Corail Tombstone", desc: "Protocolo de recuperación de inventario tras baja." },
-        { name: "Iron Backpacks", desc: "Mochilas tácticas de alta capacidad." },
+        { name: "Iron Backpacks", desc: "Almacenamiento modular táctico de alta capacidad." },
         { name: "Waystones", desc: "Red de teletransporte global entre nodos." },
         { name: "Ore Excavation", desc: "Módulo de eficiencia para vetas completas." }
       ]
@@ -103,18 +105,18 @@ export default function Home() {
       title: "Arsenal y Sociedad",
       mods: [
         { name: "The Twilight Forest", desc: "Dimensión paralela con fortalezas y jefes." },
-        { name: "Roguelike Dungeons", desc: "Estructuras subterráneas con loot táctico." },
-        { name: "Spartan Weaponry", desc: "Arsenal pesado optimizado para el combate." },
+        { name: "Roguelike Dungeons", desc: "Estructuras subterráneas llenas de loot táctico." },
+        { name: "Spartan Weaponry", desc: "Arsenal pesado optimizado para combate." },
         { name: "Tinkers' Construct", desc: "Forja avanzada y personalización de herramientas." },
         { name: "Minecraft Comes Alive (MCA)", desc: "IA humana para interacciones y familias." },
         { name: "SecurityCraft", desc: "Defensa de bases con escáneres y cámaras." },
         { name: "Immersive Engineering", desc: "Módulo industrial con redes eléctricas." },
-        { name: "MrCrayfish's Furniture", desc: "Mobiliario para estaciones de mando y bases." }
+        { name: "MrCrayfish's Furniture", desc: "Equipamiento funcional para interiores de bases." }
       ]
     }
   ];
 
-  // --- [8] FUNCIONES UX Y ESTILO ---
+  // --- [8] FUNCIONES DE UX Y SCROLL ---
   const scrollToBottom = useCallback((behavior: "smooth" | "auto" = "smooth") => {
     if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior });
   }, []);
@@ -137,11 +139,9 @@ export default function Home() {
     root.style.setProperty('--accent-rgb', hexToRgb(accentColor));
   }, [theme, accentColor]);
 
-  const toggleTheme = () => setTheme(prev => (prev === 'light' ? 'dark' : 'light'))
-
-  // --- [9] AUDIO HUB ---
+  // --- [9] AUDIO ENGINE ---
   const stopSoundTest = useCallback(() => {
-    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); streamRef.current = null; }
     if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; }
     analyserRef.current = null; setAudioLevel(0); setIsTesting(false);
   }, []);
@@ -170,7 +170,7 @@ export default function Home() {
     } catch (e) { setIsTesting(false); }
   }
 
-  // --- [10] DATA ENGINE ---
+  // --- [10] CLAN INTELLIGENCE ENGINE ---
   const fetchGlobal = useCallback(async () => {
     const { data: online } = await supabase.from('profiles').select('*').not('minecraft_name', 'is', null).order('balance', { ascending: false });
     setOnlineUsers(online || []);
@@ -193,9 +193,18 @@ export default function Home() {
       setClanMembers(members || []);
     } else {
       setMyClan(null); setClanMembers([]);
-      const { data: others } = await supabase.from('clans').select('*').limit(10); setAvailableClans(others || []);
     }
+    // Cargar todos los clanes para el buscador
+    const { data: others } = await supabase.from('clans').select('*').order('name', { ascending: true });
+    setAvailableClans(others || []);
   }, []);
+
+  const inspectClan = async (clanId: string) => {
+    const clan = availableClans.find(c => c.id === clanId);
+    setInspectingClan(clan);
+    const { data: members } = await supabase.from('clan_members').select('*, profiles(*)').eq('clan_id', clanId).eq('status', 'accepted');
+    setInspectedMembers(members || []);
+  }
 
   const loadData = useCallback(async (currUser: any) => {
     if (!currUser || !isMounted.current) return;
@@ -210,10 +219,9 @@ export default function Home() {
   useEffect(() => {
     isMounted.current = true;
     if (!user || !profile) return
-    const channel = supabase.channel('sector0_v84_core', { config: { presence: { key: user.id } } })
+    const channel = supabase.channel('sector0_v85_sync', { config: { presence: { key: user.id } } })
     channel
       .on('postgres_changes', { event: '*', schema: 'public', table: 'general_messages' }, () => fetchGlobal())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'suggestions' }, () => fetchGlobal())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clans' }, () => { fetchAdminClans(); if(user) fetchMyClanInfo(user.id); })
       .on('presence', { event: 'sync' }, () => {
         const agents = Object.values(channel.presenceState()).flat().map((p: any) => p.user_info);
@@ -227,7 +235,7 @@ export default function Home() {
     return () => { isMounted.current = false; channel.unsubscribe(); stopSoundTest(); }
   }, [user, profile, isInVoice, isMicMuted, isDeafened, fetchGlobal, fetchAdminClans, fetchMyClanInfo, stopSoundTest]);
 
-  // --- [11] ACCIONES ---
+  // --- [11] ACCIONES OPERATIVAS ---
   const adminDeleteClan = async (clanId: string) => {
     if (!confirm("¿PURGA TOTAL DE FACCIÓN?")) return;
     await supabase.from('clans').delete().eq('id', clanId); fetchAdminClans();
@@ -277,12 +285,13 @@ export default function Home() {
   }
 
   const joinClan = async (clanId: string) => {
+    if (myClan) { alert("Ya perteneces a un nodo activo. Debes abandonarlo primero."); return; }
     await supabase.from('clan_members').insert({ clan_id: clanId, user_id: user.id, status: 'pending', role: 'member' });
     alert("Solicitud transmitida.");
   }
 
   const leaveClan = async () => {
-    if (confirm(`¿Abandonar nodo?`)) { await supabase.from('clan_members').delete().eq('user_id', user.id).eq('clan_id', myClan.id); window.location.reload(); }
+    if (confirm(`¿Abandonar nodo de facción?`)) { await supabase.from('clan_members').delete().eq('user_id', user.id).eq('clan_id', myClan.id); window.location.reload(); }
   }
 
   const deleteEntry = async (id: string, table: string = 'general_messages') => {
@@ -331,35 +340,22 @@ export default function Home() {
 
   const toggleVoice = () => { if (!isInVoice) { new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3').play().catch(()=>{}); } setIsInVoice(!isInVoice); if (isInVoice) stopSoundTest(); }
 
-  if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-[10px] uppercase tracking-[1em]">Sincronizando_Terminal...</div>
+  if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-[10px] uppercase tracking-[1em]">Sincronizando_Sector_0...</div>
 
-  // --- [AQUÍ ESTÁ EL FIX] VISTA DOSSIER / ACCESO ---
+  // --- VISTA ACCESO ---
   if (!user) return (
     <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center p-4">
       <AnimatePresence mode="wait">
         {viewDossier ? (
           <motion.div key="dos" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-3xl w-full border-4 border-black dark:border-white p-8 md:p-16 bg-white dark:bg-black text-black dark:text-white shadow-[20px_20px_0px_0px_rgba(var(--accent-rgb),1)]">
-            <div className="flex items-center justify-center gap-4 mb-10">
-              <AlertCircle style={{ color: 'var(--accent)' }} size={40} className="shrink-0" />
-              <h3 className="text-3xl md:text-5xl font-black italic uppercase leading-none tracking-tighter text-center">Protocolo_Sector_0</h3>
-            </div>
-            {/* TEXTO FORZADO A CONTRASTE TOTAL */}
-            <div className="space-y-6 font-bold text-[12px] md:text-[14px] uppercase border-l-4 pl-6 md:pl-10 mb-12 py-6 bg-black/5 dark:bg-white/5 text-left leading-relaxed text-black dark:text-white" style={{ borderColor: 'var(--accent)' }}>
-              <p>— Servidor de miecraft con multiples mods.</p>
-              <p>— El servidor iniciara probablemente tras los examenes finales, habrá votación.</p>
-              <p>— puedes cambiar tus ajustes en la seccion de configuración.</p>
-              <p>— cualquier duda o sugerencia puede ser escrita en los canales de texto de la página web</p>
-            </div>
-            <div className="flex justify-center">
-              <button onClick={() => setViewDossier(false)} className="w-full md:w-auto px-16 py-6 font-black text-sm uppercase transition-all hover:scale-105 active:scale-95 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)]" style={{ backgroundColor: 'var(--accent)', color: 'white' }}>
-                ACEPTAR PROTOCOLO
-              </button>
-            </div>
+            <div className="flex items-center justify-center gap-4 mb-10"><AlertCircle style={{ color: 'var(--accent)' }} size={40} /><h3 className="text-3xl md:text-5xl font-black italic uppercase leading-none tracking-tighter">Protocolo_Sector_0</h3></div>
+            <div className="space-y-6 font-bold text-[12px] md:text-[14px] uppercase border-l-4 pl-6 md:pl-10 mb-12 py-6 bg-black/5 dark:bg-white/5 text-left leading-relaxed text-black dark:text-white" style={{ borderColor: 'var(--accent)' }}><p>— Servidor de miecraft con multiples mods.</p><p>— El servidor iniciara probablemente tras los examenes finales, habrá votación.</p><p>— cualquier duda o sugerencia puede ser escrita en los canales de texto de la página</p></div>
+            <button onClick={() => setViewDossier(false)} className="w-full md:w-auto px-16 py-6 font-black text-sm uppercase transition-all shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)]" style={{ backgroundColor: 'var(--accent)', color: 'white' }}>ACEPTAR PROTOCOLO</button>
           </motion.div>
         ) : (
           <motion.div key="inv" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1 }} className="text-center p-8 md:p-12 w-full max-w-md border-4 border-black dark:border-white bg-white dark:bg-black text-black dark:text-white shadow-[15px_15px_0px_0px_rgba(var(--accent-rgb), 1)]">
             <h1 className="text-5xl md:text-6xl font-black italic uppercase mb-2">SECTOR <span style={{ color: 'var(--accent)' }}>0</span></h1>
-            <form onSubmit={async(e:any)=>{e.preventDefault();setLoading(true);const {error}=isRegistering?await supabase.auth.signUp({email,password}):await supabase.auth.signInWithPassword({email,password});if(error)alert(error.message);setLoading(false);}} className="space-y-4 my-10"><input type="email" placeholder="EMAIL_ENLACE" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs outline-none focus:border-[var(--accent)] text-black dark:text-white" value={email} onChange={e=>setEmail(e.target.value)} required /><input type="password" placeholder="CLAVE_NODO" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs outline-none focus:border-[var(--accent)] text-black dark:text-white" value={password} onChange={(e) => setPassword(e.target.value)} required /><button type="submit" className="w-full py-5 font-black text-xs uppercase text-white" style={{backgroundColor:'var(--accent)'}}>{isRegistering?'Registrar Agente':'Acceder al Nodo'}</button></form>
+            <form onSubmit={async(e:any)=>{e.preventDefault();setLoading(true);const {error}=isRegistering?await supabase.auth.signUp({email,password}):await supabase.auth.signInWithPassword({email,password});if(error)alert(error.message);setLoading(false);}} className="space-y-4 my-10"><input type="email" placeholder="EMAIL" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs outline-none focus:border-[var(--accent)] text-black dark:text-white" value={email} onChange={e=>setEmail(e.target.value)} required /><input type="password" placeholder="PASSWORD" className="w-full p-4 border-2 border-black dark:border-white bg-transparent font-black uppercase text-xs outline-none focus:border-[var(--accent)] text-black dark:text-white" value={password} onChange={(e) => setPassword(e.target.value)} required /><button type="submit" className="w-full py-5 font-black text-xs uppercase text-white" style={{backgroundColor:'var(--accent)'}}>{isRegistering?'Registrar Agente':'Acceder al Nodo'}</button></form>
             <button onClick={()=>setIsRegistering(!isRegistering)} className="text-[11px] font-black uppercase" style={{color:'var(--accent)'}}>{isRegistering?'[ VOLVER ]':'[ NUEVA SOLICITUD ]'}</button>
           </motion.div>
         )}
@@ -368,15 +364,15 @@ export default function Home() {
   )
 
   if (!profile?.minecraft_name) return (
-    <div className="fixed inset-0 bg-white dark:bg-black flex items-center justify-center p-4"><div className="text-center space-y-10 w-full max-w-sm border-4 border-black dark:border-white p-10 bg-white dark:bg-black shadow-[15px_15px_0px_0px_rgba(var(--accent-rgb), 1)]"><h2 className="text-3xl font-black italic uppercase">Identidad</h2><form onSubmit={handleSyncIdentity} className="space-y-8"><input name="nick" required placeholder="TU_NICK_MC" className="w-full bg-transparent border-2 border-black dark:border-white p-5 font-black uppercase text-center outline-none focus:border-[var(--accent)] text-black dark:text-white" /><button type="submit" className="w-full py-6 text-white font-black text-xs uppercase" style={{ backgroundColor: 'var(--accent)' }}>Sincronizar</button></form></div></div>
+    <div className="fixed inset-0 bg-white dark:bg-black flex items-center justify-center p-4"><div className="text-center space-y-10 w-full max-w-sm border-4 border-black dark:border-white p-10 bg-white dark:bg-black text-black dark:text-white shadow-[15px_15px_0px_0px_rgba(var(--accent-rgb), 1)]"><h2 className="text-3xl font-black italic uppercase">Identidad</h2><form onSubmit={handleSyncIdentity} className="space-y-8"><input name="nick" required placeholder="TU_NICK_MC" className="w-full bg-transparent border-2 border-black dark:border-white p-5 font-black uppercase text-center outline-none focus:border-[var(--accent)] text-black dark:text-white" /><button type="submit" className="w-full py-6 text-white font-black text-xs uppercase" style={{ backgroundColor: 'var(--accent)' }}>Sincronizar</button></form></div></div>
   )
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center p-0 md:p-10 font-sans text-black dark:text-white transition-colors duration-300 overflow-hidden text-current">
+    <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center p-0 md:p-10 font-sans text-black dark:text-white transition-colors duration-300 overflow-hidden">
       
       <div className="w-full max-w-[1440px] h-full md:h-[85vh] md:border-4 md:border-black md:dark:border-white bg-white dark:bg-black flex flex-col md:flex-row overflow-hidden relative shadow-[25px_25px_0px_0px_rgba(var(--accent-rgb), 1)]">
         
-        {/* SIDEBAR DESKTOP */}
+        {/* SIDEBAR */}
         <motion.aside initial={false} animate={{ width: isNavOpen ? 256 : 0, opacity: isNavOpen ? 1 : 0 }} className="hidden md:flex border-r-4 border-black dark:border-white flex-col shrink-0 relative overflow-hidden text-current">
           <div className="p-8 border-b-4 border-black dark:border-white font-black italic text-xl uppercase tracking-tighter">Sector <span style={{ color: 'var(--accent)' }}>0</span></div>
           <nav className="flex-1 p-4 space-y-2 whitespace-nowrap overflow-y-auto no-scrollbar">
@@ -400,13 +396,12 @@ export default function Home() {
         </motion.aside>
 
         {/* MAIN VIEWPORT */}
-        <main className="flex-1 flex flex-col bg-white dark:bg-black overflow-hidden relative mb-20 md:mb-0 text-current">
+        <main className="flex-1 flex flex-col bg-white dark:bg-black overflow-hidden relative mb-20 md:mb-0">
           <AnimatePresence mode="wait">
             
-            {/* FRECUENCIA */}
             {activeTab === 'chat' && (
-              <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col h-full relative">
-                <div className="p-3 border-b-4 border-black dark:border-white bg-black/5 flex items-center justify-between"><div className="flex items-center gap-3"><span className="text-[8px] font-black uppercase opacity-40 text-current">Agentes:</span><div className="flex -space-x-2">{activeAgents.map((a, i) => (<div key={i} className="w-7 h-7 border-2 border-black overflow-hidden bg-white shrink-0"><img src={a.avatar} className="w-full h-full object-cover" alt="ag" /></div>))}</div></div></div>
+              <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col h-full relative text-current">
+                <div className="p-3 border-b-4 border-black dark:border-white bg-black/5 flex items-center justify-between"><div className="flex items-center gap-3"><span className="text-[8px] font-black uppercase opacity-40">Agentes:</span><div className="flex -space-x-2">{activeAgents.map((a, i) => (<div key={i} className="w-7 h-7 border-2 border-black overflow-hidden bg-white shrink-0"><img src={a.avatar} className="w-full h-full object-cover" alt="ag" /></div>))}</div></div></div>
                 <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 p-6 md:p-8 overflow-y-auto space-y-8 no-scrollbar relative">
                   {generalMessages.map((m, i) => {
                     const isMe = m.user_id === user?.id;
@@ -415,7 +410,7 @@ export default function Home() {
                       <div key={i} className={`flex gap-4 items-start ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                         <Avatar src={m.profiles?.avatar_url} color={m.profiles?.name_color} size="w-9 h-9" />
                         <div className={`flex flex-col gap-1 max-w-[70%] ${isMe ? 'items-end' : 'items-start'}`}>
-                          <div className="flex items-center gap-3"><span className="text-[8px] font-black uppercase opacity-40 text-current" style={{ color: m.profiles?.name_color }}>@{m.profiles?.minecraft_name}</span>{canDelete && <button onClick={() => deleteEntry(m.id)} className="text-red-600 opacity-20 hover:opacity-100 transition-all"><Trash2 size={12}/></button>}</div>
+                          <div className="flex items-center gap-3"><span className="text-[8px] font-black uppercase opacity-40" style={{ color: m.profiles?.name_color }}>@{m.profiles?.minecraft_name}</span>{canDelete && <button onClick={() => deleteEntry(m.id)} className="text-red-600 opacity-20 hover:opacity-100 transition-all"><Trash2 size={12}/></button>}</div>
                           <div className={`p-4 border-2 border-black dark:border-white text-[11px] font-bold ${isMe ? 'bg-black text-white dark:bg-white dark:text-black border-transparent shadow-[4px_4px_0px_0px_rgba(var(--accent-rgb),1)]' : 'bg-white dark:bg-black text-left text-black dark:text-white'}`}>{m.content}</div>
                         </div>
                       </div>
@@ -428,36 +423,87 @@ export default function Home() {
               </motion.div>
             )}
 
-            {/* CLANES */}
+            {/* [B] CLANES (VISTA CONDICIONAL CON INSPECTOR) */}
             {activeTab === 'clans' && (
               <motion.div key="cl" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 p-6 md:p-12 overflow-y-auto no-scrollbar text-left text-current">
-                {(isAdmin && isAdminView) ? (
+                {inspectingClan ? (
+                  <div className="space-y-8">
+                    <button onClick={() => setInspectingClan(null)} className="text-[10px] font-black uppercase opacity-40 hover:opacity-100 flex items-center gap-2"><ChevronLeft size={14}/> Volver al Directorio</button>
+                    <div className="p-8 border-4 border-black dark:border-white bg-black/5 space-y-6">
+                       <h2 className="text-4xl font-black uppercase italic tracking-tighter">[{inspectingClan.name}]</h2>
+                       <div className="space-y-4">
+                          <p className="text-[11px] font-black uppercase opacity-40 flex items-center gap-2"><Users size={16}/> Agentes Identificados:</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             {inspectedMembers.map(m => (
+                               <div key={m.id} className="p-3 border-2 border-black bg-white dark:bg-black flex justify-between items-center">
+                                  <div className="flex items-center gap-3"><Avatar src={m.profiles.avatar_url} color={m.profiles.name_color} size="w-8 h-8" /><span className="font-black text-[11px] uppercase">@{m.profiles.minecraft_name}</span></div>
+                                  <span className="text-[8px] font-bold uppercase opacity-30 tracking-widest">{m.role}</span>
+                               </div>
+                             ))}
+                          </div>
+                       </div>
+                       {!myClan && (
+                         <button onClick={() => joinClan(inspectingClan.id)} className="w-full py-4 text-white font-black text-xs uppercase" style={{ backgroundColor: 'var(--accent)' }}>Enviar Solicitud de Unión</button>
+                       )}
+                    </div>
+                  </div>
+                ) : (isAdmin && isAdminView) ? (
                   <div className="space-y-12">
-                    <h2 className="text-4xl font-black italic uppercase border-b-4 border-black dark:border-white pb-6 tracking-tighter text-current">Overlord_Clanes</h2>
+                    <h2 className="text-4xl font-black italic uppercase border-b-4 border-black dark:border-white pb-6 tracking-tighter">Overlord_Clanes</h2>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 text-current">
                        {allClansAdmin.map(clan => (
                          <div key={clan.id} className="p-6 border-4 border-black dark:border-white bg-black/5 space-y-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)]">
-                            <div className="flex justify-between items-start text-current"><div><p className="text-[10px] font-black opacity-30 uppercase">Nodo</p><h3 className="text-2xl font-black uppercase">{clan.name}</h3></div><div className="flex gap-2"><button onClick={() => adminEditClanBalance(clan.id, clan.balance)} className="p-2 border-2 border-black bg-white dark:bg-black hover:bg-black hover:text-white"><Edit3 size={14}/></button><button onClick={() => adminDeleteClan(clan.id)} className="p-2 border-2 border-black bg-red-600 text-white"><Trash2 size={14}/></button></div></div>
+                            <div className="flex justify-between items-start"><div><p className="text-[10px] font-black opacity-30 uppercase">Nodo</p><h3 className="text-2xl font-black uppercase">{clan.name}</h3></div><div className="flex gap-2"><button onClick={() => adminEditClanBalance(clan.id, clan.balance)} className="p-2 border-2 border-black bg-white dark:bg-black hover:bg-black hover:text-white"><Edit3 size={14}/></button><button onClick={() => adminDeleteClan(clan.id)} className="p-2 border-2 border-black bg-red-600 text-white"><Trash2 size={14}/></button></div></div>
                             <div className="flex justify-between items-center p-3 border-2 border-black bg-white dark:bg-black font-black text-sm text-current" style={{ color: 'var(--accent)' }}><span>BALANCE:</span> <span>${clan.balance?.toLocaleString()}</span></div>
-                            <div className="space-y-2"><p className="text-[9px] font-black uppercase opacity-40 text-current text-left">Agentes:</p>{clan.clan_members?.map((m: any) => (<div key={m.profiles.id} className="flex justify-between items-center p-2 border-b border-black/10"><div className="flex items-center gap-2 text-current"><Avatar src={m.profiles.avatar_url} color={m.profiles.name_color} size="w-6 h-6" /><span className="text-[10px] font-black uppercase">@{m.profiles.minecraft_name}</span></div><button onClick={() => adminExpelMember(m.profiles.id, clan.id)} className="text-red-600"><UserX size={14}/></button></div>))}</div>
+                            <div className="space-y-2"><p className="text-[9px] font-black uppercase opacity-40 text-current text-left">Miembros:</p>{clan.clan_members?.map((m: any) => (<div key={m.profiles.id} className="flex justify-between items-center p-2 border-b border-black/10"><div className="flex items-center gap-2 text-current"><Avatar src={m.profiles.avatar_url} color={m.profiles.name_color} size="w-6 h-6" /><span className="text-[10px] font-black uppercase">@{m.profiles.minecraft_name}</span></div><button onClick={() => adminExpelMember(m.profiles.id, clan.id)} className="text-red-600"><UserX size={14}/></button></div>))}</div>
                          </div>
                        ))}
                     </div>
                   </div>
-                ) : myClan ? (
-                  <div className="space-y-10"><div className="p-10 border-4 border-black dark:border-white bg-black/5 text-center relative shadow-[10px_10px_0px_0px_rgba(var(--accent-rgb),1)]"><p className="text-[10px] font-black uppercase mb-4 tracking-widest opacity-40 text-current">Mi Nodo: {myClan.name}</p><h2 className="text-6xl md:text-8xl font-black text-current" style={{ color: 'var(--accent)' }}>${myClan.balance?.toLocaleString()}</h2><button onClick={leaveClan} className="mt-8 flex items-center gap-2 mx-auto text-[9px] font-black text-red-600 border-2 border-red-600 px-4 py-2 hover:bg-red-600 hover:text-white transition-all uppercase"><UserMinus size={14}/> Abandonar Facción</button></div><div className="border-2 border-black dark:border-white divide-y-2 bg-white dark:bg-black text-left text-current">{clanMembers.map(m => (<div key={m.profiles.id} className="p-4 flex justify-between items-center text-black dark:text-white"><div className="flex items-center gap-3 text-current"><Avatar src={m.profiles.avatar_url} color={m.profiles.name_color} size="w-8 h-8" /><p className="text-[11px] font-black uppercase" style={{color: m.profiles.name_color}}>@{m.profiles.minecraft_name}</p></div><p className="text-[9px] font-bold opacity-30 uppercase">{m.role}</p></div>))}</div></div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12 text-left text-current"><div className="space-y-8"><p className="text-[10px] font-black opacity-30 uppercase">Facciones_Activas</p><div className="flex border-4 border-black dark:border-white shadow-[6px_6px_0px_0px_rgba(var(--accent-rgb),1)] bg-white dark:bg-black mb-6 text-current"><input placeholder="BUSCAR..." className="flex-1 p-5 bg-transparent outline-none font-bold text-xs text-current" value={clanSearchQuery} onChange={e => setClanSearchQuery(e.target.value)} /><button onClick={() => { supabase.from('clans').select('*').ilike('name', `%${clanSearchQuery}%`).then(({data}) => setAvailableClans(data || [])) }} className="p-5 bg-black dark:bg-white text-white dark:text-black"><Search size={20} /></button></div><div className="space-y-4">{availableClans.map(c => (<div key={c.id} className="p-4 border-2 border-black dark:border-white flex justify-between items-center bg-black/5 dark:bg-white/5 text-current"><span className="font-black text-[10px] uppercase text-current">{c.name}</span><button onClick={() => joinClan(c.id)} className="text-[9px] font-black border-2 border-black dark:border-white px-3 py-1 hover:text-white transition-all" style={{ backgroundColor: 'var(--accent)', color: 'white' }}>UNIRSE</button></div>))}</div></div><div className="space-y-8 text-center text-current"><p className="text-[10px] font-black opacity-30 uppercase text-center">Registrar_Nodo</p><input placeholder="NOMBRE..." className="w-full p-5 border-4 border-black dark:border-white bg-transparent font-black uppercase outline-none focus:border-[var(--accent)] text-current" value={newClanName} onChange={e => setNewClanName(e.target.value)} /><button onClick={createClan} className="w-full py-6 text-white font-black text-[10px] uppercase shadow-[8px_8px_0px_0px_rgba(var(--accent-rgb), 1)]" style={{ backgroundColor: 'var(--accent)' }}>Fundar Clan</button></div></div>
+                  <div className="space-y-12">
+                    {myClan && (
+                      <div className="p-10 border-4 border-black dark:border-white bg-black/5 text-center relative shadow-[10px_10px_0px_0px_rgba(var(--accent-rgb),1)]">
+                        <p className="text-[10px] font-black uppercase mb-4 tracking-widest opacity-40 text-current">Tu Facción: {myClan.name}</p>
+                        <h2 className="text-6xl md:text-8xl font-black text-current" style={{ color: 'var(--accent)' }}>${myClan.balance?.toLocaleString()}</h2>
+                        <button onClick={leaveClan} className="mt-8 flex items-center gap-2 mx-auto text-[9px] font-black text-red-600 border-2 border-red-600 px-4 py-2 hover:bg-red-600 hover:text-white transition-all uppercase"><UserMinus size={14}/> Abandonar Nodo</button>
+                      </div>
+                    )}
+                    
+                    <div className="space-y-8">
+                       <p className="text-[11px] font-black uppercase opacity-40 flex items-center gap-2"><SearchCode size={16}/> Directorio de Facciones Disponibles:</p>
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {availableClans.map(c => (
+                            <div key={c.id} className="p-6 border-4 border-black dark:border-white bg-white dark:bg-black space-y-4 hover:border-[var(--accent)] transition-all group">
+                               <h3 className="font-black text-lg uppercase">[{c.name}]</h3>
+                               <div className="flex flex-col gap-2">
+                                  <button onClick={() => inspectClan(c.id)} className="w-full py-2 border-2 border-black font-black text-[9px] uppercase hover:bg-black hover:text-white transition-all">Inspeccionar Miembros</button>
+                                  {!myClan && <button onClick={() => joinClan(c.id)} className="w-full py-2 text-white font-black text-[9px] uppercase" style={{backgroundColor: 'var(--accent)'}}>Solicitar Acceso</button>}
+                               </div>
+                            </div>
+                          ))}
+                       </div>
+                       {!myClan && (
+                         <div className="pt-12 border-t-4 border-black/10 text-center">
+                            <p className="text-[10px] font-black opacity-30 uppercase mb-6">Registrar Nueva Facción</p>
+                            <div className="max-w-md mx-auto flex gap-2">
+                               <input placeholder="NOMBRE..." className="flex-1 p-4 border-4 border-black bg-transparent font-black uppercase text-xs" value={newClanName} onChange={e=>setNewClanName(e.target.value)} />
+                               <button onClick={createClan} className="px-6 py-4 text-white font-black text-xs uppercase" style={{backgroundColor:'var(--accent)'}}>Fundar</button>
+                            </div>
+                         </div>
+                       )}
+                    </div>
+                  </div>
                 )}
               </motion.div>
             )}
 
-            {/* RADIO VOZ */}
+            {/* RADIO VOZ CON MONITOREO */}
             {activeTab === 'voice' && (
               <motion.div key="vox" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col p-6 md:p-12 overflow-y-auto no-scrollbar text-current">
-                <div className="max-w-4xl mx-auto w-full space-y-10 text-left">
-                  <h2 className="text-5xl font-black italic uppercase tracking-tighter border-b-4 border-black dark:border-white pb-6 text-current">Protocolo_Radio</h2>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 text-current">
+                <div className="max-w-4xl mx-auto w-full space-y-10 text-left text-current">
+                  <h2 className="text-5xl font-black italic uppercase tracking-tighter border-b-4 border-black dark:border-white pb-6">Protocolo_Radio</h2>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                     <div className="space-y-8">
                        <div className="p-8 border-4 border-black dark:border-white bg-black/5 flex flex-col items-center gap-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)]">
                           <div className={`w-24 h-24 border-4 border-black flex items-center justify-center ${isInVoice ? 'bg-[var(--accent)] text-white shadow-[0_0_20px_rgba(var(--accent-rgb),0.5)]' : 'bg-white text-black'}`}>{isInVoice ? <Wifi className="animate-pulse" /> : <MicOff className="opacity-20" />}</div>
@@ -473,7 +519,7 @@ export default function Home() {
                        </div>
                        <div className="space-y-2">{voiceAgents.map((agent, i) => (
                          <div key={i} className="p-4 border-2 border-black dark:border-white bg-white dark:bg-black space-y-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)]">
-                           <div className="flex justify-between items-center text-current"><div className="flex items-center gap-3"><Avatar src={agent.avatar} color={agent.color} size="w-8 h-8" isTalking={!agent.is_muted && !isDeafened} /><span className="font-black text-[11px] uppercase text-current" style={{ color: agent.color }}>@{agent.nick}</span></div><div className="flex items-center gap-2">{agent.is_deaf ? <EarOff size={12} className="text-red-600"/> : agent.is_muted ? <MicOff size={12} className="opacity-30"/> : <Volume2 size={12} className="text-green-500"/>}</div></div>
+                           <div className="flex justify-between items-center text-current"><div className="flex items-center gap-3"><Avatar src={agent.avatar} color={agent.color} size="w-8 h-8" isTalking={!agent.is_muted && !isDeafened} /><span className="font-black text-[11px] uppercase" style={{ color: agent.color }}>@{agent.nick}</span></div><div className="flex items-center gap-2">{agent.is_deaf ? <EarOff size={12} className="text-red-600"/> : agent.is_muted ? <MicOff size={12} className="opacity-30"/> : <Volume2 size={12} className="text-green-500"/>}</div></div>
                            {agent.id !== user?.id && (<div className="flex items-center gap-3"><Volume1 size={12} className="opacity-40 text-current"/><input type="range" min="0" max="200" value={userVolumes[agent.id] || 100} onChange={(e)=>setUserVolumes({...userVolumes, [agent.id]: parseInt(e.target.value)})} className="flex-1 h-1 bg-black/10 appearance-none cursor-pointer accent-[var(--accent)]" /><span className="text-[9px] font-black w-8 text-current">{userVolumes[agent.id] || 100}%</span></div>)}
                          </div>
                        ))}</div>
@@ -481,7 +527,7 @@ export default function Home() {
                     <div className="space-y-8 p-8 border-4 border-black dark:border-white bg-black/5 text-left text-current">
                        <h3 className="font-black uppercase text-xs flex items-center gap-2 text-current"><Settings2 size={16}/> Calibración_Audio</h3>
                        <div className="space-y-6">
-                          <div className="space-y-2"><label className="text-[9px] font-black uppercase opacity-40 block text-current">Micrófono</label><select value={selectedInput} onChange={(e) => setSelectedInput(e.target.value)} className="w-full p-4 bg-white dark:bg-black border-2 border-black font-black text-[10px] uppercase outline-none text-current">{devices.filter(d => d.kind === 'audioinput').map(d => (<option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0,5)}`}</option>))}</select></div>
+                          <div className="space-y-2 text-current"><label className="text-[9px] font-black uppercase opacity-40 block">Micrófono</label><select value={selectedInput} onChange={(e) => setSelectedInput(e.target.value)} className="w-full p-4 bg-white dark:bg-black border-2 border-black font-black text-[10px] uppercase outline-none text-current">{devices.filter(d => d.kind === 'audioinput').map(d => (<option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0,5)}`}</option>))}</select></div>
                           <div className="pt-4 space-y-4 border-t-2 border-black/10 text-center">
                              <div className="flex gap-2">
                                 <button onClick={startSoundTest} className={`flex-1 py-2 border-2 border-black font-black text-[9px] uppercase ${isTesting ? 'bg-green-500 text-white' : 'hover:bg-black hover:text-white'} transition-all`}>{isTesting ? "MODO ESCUCHA" : "INICIAR MONITOREO"}</button>
@@ -511,7 +557,7 @@ export default function Home() {
                         <p className="text-xs font-bold opacity-80 leading-relaxed text-current">{s.content}</p>
                         <div className="flex flex-col md:flex-row md:items-center gap-6 pt-4 border-t-2 border-black/5 text-current">
                            <div className="flex gap-2 text-current"><button onClick={() => voteSuggestion(s.id, 'up')} className={`flex items-center gap-2 p-2 border-2 border-black font-black text-[9px] ${s.upvotes?.includes(user?.id) ? 'bg-green-500 text-white' : ''}`}><ThumbsUp size={12}/> {upCount}</button><button onClick={() => voteSuggestion(s.id, 'down')} className={`flex items-center gap-2 p-2 border-2 border-black font-black text-[9px] ${s.downvotes?.includes(user?.id) ? 'bg-red-500 text-white' : ''}`}><ThumbsDown size={12}/> {downCount}</button></div>
-                           <div className="flex-1 space-y-2 text-current"><div className="flex justify-between items-center text-[9px] font-black uppercase text-current"><span className="opacity-40">Ratio_Aceptación</span><span style={{ color: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }}>{ratio}%</span></div><div className="h-2 bg-black/10 rounded-full overflow-hidden flex"><motion.div initial={{ width: 0 }} animate={{ width: `${ratio}%` }} className="h-full" style={{ backgroundColor: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }} /></div></div>
+                           <div className="flex-1 space-y-2 text-current"><div className="flex justify-between items-center text-[9px] font-black uppercase text-current"><span className="opacity-40 text-current">Gusto de Comunidad</span><span style={{ color: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }}>{ratio}%</span></div><div className="h-2 bg-black/10 rounded-full overflow-hidden flex"><motion.div initial={{ width: 0 }} animate={{ width: `${ratio}%` }} className="h-full" style={{ backgroundColor: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }} /></div></div>
                         </div>
                       </div>
                     )
@@ -570,14 +616,14 @@ export default function Home() {
 
         <button onClick={() => setIsRankOpen(!isRankOpen)} className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-[100] bg-black text-white p-1 border-2 border-white hover:bg-orange-600 transition-all shadow-xl" style={{ right: isRankOpen ? '310px' : '0px' }}>{isRankOpen ? <ChevronRight size={16}/> : <ChevronLeft size={16}/>}</button>
 
-        {/* RANKING DERECHA */}
+        {/* RANKING DERECHA (DESKTOP) */}
         <motion.aside initial={false} animate={{ width: isRankOpen ? 320 : 0, opacity: isRankOpen ? 1 : 0 }} className="hidden md:flex border-l-4 border-black dark:border-white p-8 overflow-y-auto no-scrollbar bg-white dark:bg-black shrink-0 text-left relative overflow-hidden text-current">
           <div className="whitespace-nowrap w-full text-current text-left"><p className="text-[10px] font-black uppercase tracking-[0.4em] mb-10 opacity-30">Ranking_Global</p>
             <div className="space-y-4">{onlineUsers.slice(0, 20).map((u, i) => (<div key={u.id} className="p-5 border-2 border-black/10 transition-all group" style={i === 0 ? { borderColor: 'var(--accent)', boxShadow: '4px 4px 0px 0px rgba(var(--accent-rgb), 1)' } : {}}><div className="flex justify-between items-start text-current"><div className="flex items-center gap-3 text-current"><Avatar src={u.avatar_url} color={u.name_color} size="w-10 h-10" /><div className="flex flex-col min-w-0 text-left text-current"><span className="text-[10px] font-black uppercase truncate" style={{ color: u.name_color }}>{i + 1}. @{u.minecraft_name}</span><span className="text-[12px] font-bold mt-1" style={{ color: 'var(--accent)' }}>${u.balance?.toLocaleString()}</span></div></div></div><div className="flex gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-all"><button onClick={() => { setSelectedUser(u); setActiveTab('messages'); fetchPrivateMessages(u.id); }} className="text-[8px] font-black border-2 border-black px-3 py-1 bg-black text-white dark:bg-white dark:text-black hover:bg-orange-600 transition-all">CONTACTAR</button></div></div>))}</div>
           </div>
         </motion.aside>
 
-        {/* NAVEGACIÓN MÓVIL SCROLLABLE */}
+        {/* --- NAVEGACIÓN MÓVIL SCROLLABLE --- */}
         <nav className="flex md:hidden fixed bottom-0 left-0 right-0 h-20 border-t-4 border-black dark:border-white bg-white dark:bg-black z-[100] items-center overflow-x-auto no-scrollbar flex-nowrap px-6 gap-10">
           {[ { id: 'chat', icon: Globe }, { id: 'voice', icon: Radio }, { id: 'suggestions', icon: Lightbulb }, { id: 'mods', icon: Package }, { id: 'overview', icon: Wallet }, { id: 'transfer', icon: Send }, { id: 'clans', icon: Shield }, { id: 'messages', icon: MessageSquare }, { id: 'settings', icon: Settings } ].map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex-shrink-0 p-4 transition-all ${activeTab === item.id ? 'scale-125' : 'opacity-40'}`} style={activeTab === item.id ? { color: 'var(--accent)' } : {}}><item.icon size={22} /></button>
