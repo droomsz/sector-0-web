@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight, SendHorizonal, AlertCircle, UserMinus, User, 
   Camera, Upload, Settings, Save, ChevronDown, Users, Package, Lightbulb, Trash2,
   Mic, MicOff, Radio, Volume2, Wifi, Zap, Settings2, Volume1, VolumeX, Headphones, EarOff,
-  ThumbsUp, ThumbsDown, BarChart3, X, Type, CheckCircle2, LayoutGrid, Edit3, UserX, Eye, EyeOff, SearchCode
+  ThumbsUp, ThumbsDown, BarChart3, X, Type, CheckCircle2, LayoutGrid, Edit3, UserX, Eye, EyeOff, SearchCode, UserCheck, UserPlus
 } from 'lucide-react'
 
 export default function Home() {
@@ -67,11 +67,14 @@ export default function Home() {
   const [suggestions, setSuggestions] = useState<any[]>([])
   const [suggestionInput, setSuggestionInput] = useState('')
   const [onlineUsers, setOnlineUsers] = useState<any[]>([])
+  
   const [myClan, setMyClan] = useState<any>(null)
+  const [myRole, setMyRole] = useState<string>('member')
   const [clanMembers, setClanMembers] = useState<any[]>([])
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]) // NUEVO: Solicitudes pendientes
   const [allClansAdmin, setAllClansAdmin] = useState<any[]>([])
   const [availableClans, setAvailableClans] = useState<any[]>([])
-  const [inspectingClan, setInspectingClan] = useState<any>(null) // Para ver miembros de otros clanes
+  const [inspectingClan, setInspectingClan] = useState<any>(null)
   const [inspectedMembers, setInspectedMembers] = useState<any[]>([])
   const [clanSearchQuery, setClanSearchQuery] = useState('')
   const [newClanName, setNewClanName] = useState('')
@@ -139,6 +142,8 @@ export default function Home() {
     root.style.setProperty('--accent-rgb', hexToRgb(accentColor));
   }, [theme, accentColor]);
 
+  const toggleTheme = () => setTheme(prev => (prev === 'light' ? 'dark' : 'light'))
+
   // --- [9] AUDIO ENGINE ---
   const stopSoundTest = useCallback(() => {
     if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); streamRef.current = null; }
@@ -170,7 +175,7 @@ export default function Home() {
     } catch (e) { setIsTesting(false); }
   }
 
-  // --- [10] CLAN INTELLIGENCE ENGINE ---
+  // --- [10] CLAN ENGINE (RECRUITMENT ADDED) ---
   const fetchGlobal = useCallback(async () => {
     const { data: online } = await supabase.from('profiles').select('*').not('minecraft_name', 'is', null).order('balance', { ascending: false });
     setOnlineUsers(online || []);
@@ -189,15 +194,31 @@ export default function Home() {
     const { data: membership } = await supabase.from('clan_members').select('clan_id, role, clans(*)').eq('user_id', userId).eq('status', 'accepted').maybeSingle();
     if (membership && membership.clans) {
       setMyClan(membership.clans);
-      const { data: members } = await supabase.from('clan_members').select('*, profiles(*)').eq('clan_id', membership.clan_id).eq('status', 'accepted');
-      setClanMembers(members || []);
+      setMyRole(membership.role);
+      const { data: members } = await supabase.from('clan_members').select('*, profiles(*)').eq('clan_id', membership.clan_id);
+      setClanMembers(members?.filter(m => m.status === 'accepted') || []);
+      // Solo si soy líder, buscar solicitudes pendientes
+      if (membership.role === 'leader') {
+        setPendingRequests(members?.filter(m => m.status === 'pending') || []);
+      }
     } else {
-      setMyClan(null); setClanMembers([]);
+      setMyClan(null); setClanMembers([]); setPendingRequests([]);
     }
-    // Cargar todos los clanes para el buscador
     const { data: others } = await supabase.from('clans').select('*').order('name', { ascending: true });
     setAvailableClans(others || []);
   }, []);
+
+  const acceptMember = async (targetUserId: string) => {
+    if (!myClan) return;
+    const { error } = await supabase.from('clan_members').update({ status: 'accepted' }).eq('user_id', targetUserId).eq('clan_id', myClan.id);
+    if (!error) { fetchMyClanInfo(user.id); alert("Agente integrado al nodo."); }
+  }
+
+  const rejectMember = async (targetUserId: string) => {
+    if (!myClan) return;
+    const { error } = await supabase.from('clan_members').delete().eq('user_id', targetUserId).eq('clan_id', myClan.id);
+    if (!error) { fetchMyClanInfo(user.id); alert("Solicitud denegada."); }
+  }
 
   const inspectClan = async (clanId: string) => {
     const clan = availableClans.find(c => c.id === clanId);
@@ -219,10 +240,11 @@ export default function Home() {
   useEffect(() => {
     isMounted.current = true;
     if (!user || !profile) return
-    const channel = supabase.channel('sector0_v85_sync', { config: { presence: { key: user.id } } })
+    const channel = supabase.channel('sector0_v86_core', { config: { presence: { key: user.id } } })
     channel
       .on('postgres_changes', { event: '*', schema: 'public', table: 'general_messages' }, () => fetchGlobal())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clans' }, () => { fetchAdminClans(); if(user) fetchMyClanInfo(user.id); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clan_members' }, () => { if(user) fetchMyClanInfo(user.id); })
       .on('presence', { event: 'sync' }, () => {
         const agents = Object.values(channel.presenceState()).flat().map((p: any) => p.user_info);
         setActiveAgents(agents); setVoiceAgents(agents.filter((a: any) => a.in_voice));
@@ -237,24 +259,19 @@ export default function Home() {
 
   // --- [11] ACCIONES OPERATIVAS ---
   const adminDeleteClan = async (clanId: string) => {
-    if (!confirm("¿PURGA TOTAL DE FACCIÓN?")) return;
+    if (!confirm("¿PURGA TOTAL?")) return;
     await supabase.from('clans').delete().eq('id', clanId); fetchAdminClans();
   }
 
   const adminExpelMember = async (userId: string, clanId: string) => {
-    if (!confirm("¿ELIMINAR AGENTE DEL NODO?")) return;
+    if (!confirm("¿ELIMINAR AGENTE?")) return;
     await supabase.from('clan_members').delete().eq('user_id', userId).eq('clan_id', clanId); fetchAdminClans();
-  }
-
-  const adminEditClanBalance = async (clanId: string, current: number) => {
-    const val = prompt("MODIFICAR BALANCE FISCAL:", current.toString());
-    if (val) { await supabase.from('clans').update({ balance: parseFloat(val) }).eq('id', clanId); fetchAdminClans(); }
   }
 
   const handleSyncIdentity = async (e: any) => {
     e.preventDefault(); const nick = e.target.nick.value;
     const { error } = await supabase.from('profiles').upsert({ id: user.id, minecraft_name: nick, balance: 0, name_color: '#ff6600' });
-    if (!error) { await supabase.from('general_messages').insert({ user_id: user.id, content: `⚡ [SISTEMA] Agente @${nick} en red.` }); window.location.reload(); }
+    if (!error) { await supabase.from('general_messages').insert({ user_id: user.id, content: `⚡ [PROTOCOLO] @${nick} en red.` }); window.location.reload(); }
   }
 
   const handleTransfer = async (e: any) => {
@@ -285,13 +302,13 @@ export default function Home() {
   }
 
   const joinClan = async (clanId: string) => {
-    if (myClan) { alert("Ya perteneces a un nodo activo. Debes abandonarlo primero."); return; }
+    if (myClan) { alert("Ya perteneces a una facción."); return; }
     await supabase.from('clan_members').insert({ clan_id: clanId, user_id: user.id, status: 'pending', role: 'member' });
     alert("Solicitud transmitida.");
   }
 
   const leaveClan = async () => {
-    if (confirm(`¿Abandonar nodo de facción?`)) { await supabase.from('clan_members').delete().eq('user_id', user.id).eq('clan_id', myClan.id); window.location.reload(); }
+    if (confirm(`¿Abandonar nodo?`)) { await supabase.from('clan_members').delete().eq('user_id', user.id).eq('clan_id', myClan.id); window.location.reload(); }
   }
 
   const deleteEntry = async (id: string, table: string = 'general_messages') => {
@@ -340,16 +357,16 @@ export default function Home() {
 
   const toggleVoice = () => { if (!isInVoice) { new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3').play().catch(()=>{}); } setIsInVoice(!isInVoice); if (isInVoice) stopSoundTest(); }
 
-  if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-[10px] uppercase tracking-[1em]">Sincronizando_Sector_0...</div>
+  if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-[10px] uppercase tracking-[1em]">Sincronizando_Terminal...</div>
 
-  // --- VISTA ACCESO ---
+  // --- VISTA ACCESO (CORREGIDA V84) ---
   if (!user) return (
     <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center p-4">
       <AnimatePresence mode="wait">
         {viewDossier ? (
           <motion.div key="dos" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-3xl w-full border-4 border-black dark:border-white p-8 md:p-16 bg-white dark:bg-black text-black dark:text-white shadow-[20px_20px_0px_0px_rgba(var(--accent-rgb),1)]">
-            <div className="flex items-center justify-center gap-4 mb-10"><AlertCircle style={{ color: 'var(--accent)' }} size={40} /><h3 className="text-3xl md:text-5xl font-black italic uppercase leading-none tracking-tighter">Protocolo_Sector_0</h3></div>
-            <div className="space-y-6 font-bold text-[12px] md:text-[14px] uppercase border-l-4 pl-6 md:pl-10 mb-12 py-6 bg-black/5 dark:bg-white/5 text-left leading-relaxed text-black dark:text-white" style={{ borderColor: 'var(--accent)' }}><p>— Servidor de miecraft con multiples mods.</p><p>— El servidor iniciara probablemente tras los examenes finales, habrá votación.</p><p>— cualquier duda o sugerencia puede ser escrita en los canales de texto de la página</p></div>
+            <div className="flex items-center justify-center gap-4 mb-10 text-current"><AlertCircle style={{ color: 'var(--accent)' }} size={40} /><h3 className="text-3xl md:text-5xl font-black italic uppercase leading-none tracking-tighter">Protocolo_Sector_0</h3></div>
+            <div className="space-y-6 font-bold text-[12px] md:text-[14px] uppercase border-l-4 pl-6 md:pl-10 mb-12 py-6 bg-black/5 dark:bg-white/5 text-left leading-relaxed text-black dark:text-white" style={{ borderColor: 'var(--accent)' }}><p>— TERMINAL DE CONTROL FINANCIERO Y FACCIONES ACTIVA.</p><p>— LA IDENTIDAD DEBE SER VINCULADA PARA OPERAR EN RED.</p><p>— CUALQUIER ACCIÓN QUEDA REGISTRADA EN EL NODO CENTRAL.</p></div>
             <button onClick={() => setViewDossier(false)} className="w-full md:w-auto px-16 py-6 font-black text-sm uppercase transition-all shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)]" style={{ backgroundColor: 'var(--accent)', color: 'white' }}>ACEPTAR PROTOCOLO</button>
           </motion.div>
         ) : (
@@ -364,7 +381,7 @@ export default function Home() {
   )
 
   if (!profile?.minecraft_name) return (
-    <div className="fixed inset-0 bg-white dark:bg-black flex items-center justify-center p-4"><div className="text-center space-y-10 w-full max-w-sm border-4 border-black dark:border-white p-10 bg-white dark:bg-black text-black dark:text-white shadow-[15px_15px_0px_0px_rgba(var(--accent-rgb), 1)]"><h2 className="text-3xl font-black italic uppercase">Identidad</h2><form onSubmit={handleSyncIdentity} className="space-y-8"><input name="nick" required placeholder="TU_NICK_MC" className="w-full bg-transparent border-2 border-black dark:border-white p-5 font-black uppercase text-center outline-none focus:border-[var(--accent)] text-black dark:text-white" /><button type="submit" className="w-full py-6 text-white font-black text-xs uppercase" style={{ backgroundColor: 'var(--accent)' }}>Sincronizar</button></form></div></div>
+    <div className="fixed inset-0 bg-white dark:bg-black flex items-center justify-center p-4"><div className="text-center space-y-10 w-full max-w-sm border-4 border-black dark:border-white p-10 bg-white dark:bg-black shadow-[15px_15px_0px_0px_rgba(var(--accent-rgb), 1)]"><h2 className="text-3xl font-black italic uppercase">Identidad</h2><form onSubmit={handleSyncIdentity} className="space-y-8"><input name="nick" required placeholder="TU_NICK_MC" className="w-full bg-transparent border-2 border-black dark:border-white p-5 font-black uppercase text-center outline-none focus:border-[var(--accent)] text-black dark:text-white" /><button type="submit" className="w-full py-6 text-white font-black text-xs uppercase" style={{ backgroundColor: 'var(--accent)' }}>Sincronizar</button></form></div></div>
   )
 
   return (
@@ -399,9 +416,10 @@ export default function Home() {
         <main className="flex-1 flex flex-col bg-white dark:bg-black overflow-hidden relative mb-20 md:mb-0">
           <AnimatePresence mode="wait">
             
+            {/* [A] FRECUENCIA */}
             {activeTab === 'chat' && (
               <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col h-full relative text-current">
-                <div className="p-3 border-b-4 border-black dark:border-white bg-black/5 flex items-center justify-between"><div className="flex items-center gap-3"><span className="text-[8px] font-black uppercase opacity-40">Agentes:</span><div className="flex -space-x-2">{activeAgents.map((a, i) => (<div key={i} className="w-7 h-7 border-2 border-black overflow-hidden bg-white shrink-0"><img src={a.avatar} className="w-full h-full object-cover" alt="ag" /></div>))}</div></div></div>
+                <div className="p-3 border-b-4 border-black dark:border-white bg-black/5 flex items-center justify-between text-current"><div className="flex items-center gap-3"><span className="text-[8px] font-black uppercase opacity-40">Agentes:</span><div className="flex -space-x-2">{activeAgents.map((a, i) => (<div key={i} className="w-7 h-7 border-2 border-black overflow-hidden bg-white shrink-0"><img src={a.avatar} className="w-full h-full object-cover" alt="ag" /></div>))}</div></div></div>
                 <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 p-6 md:p-8 overflow-y-auto space-y-8 no-scrollbar relative">
                   {generalMessages.map((m, i) => {
                     const isMe = m.user_id === user?.id;
@@ -418,44 +436,41 @@ export default function Home() {
                   })}
                   <div ref={chatEndRef} />
                 </div>
-                {showScrollBtn && (<button onClick={() => scrollToBottom()} className="absolute bottom-[100px] right-8 p-3 border-4 border-black dark:border-white bg-white dark:bg-black shadow-[4px_4px_0px_0px_rgba(var(--accent-rgb),1)] animate-bounce"><ChevronDown style={{ color: 'var(--accent)' }} size={20} /></button>)}
                 <div className="p-4 md:p-6 border-t-4 border-black dark:border-white flex gap-3 bg-white dark:bg-black"><input placeholder="TRANSMITIR..." className="flex-1 bg-transparent p-4 text-[10px] font-black outline-none border-2 border-transparent focus:border-black dark:focus:border-white uppercase text-black dark:text-white" value={messageInput} onChange={e=>setMessageInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&(async()=>{if(!messageInput.trim())return;await supabase.from('general_messages').insert({user_id:user.id,content:messageInput});setMessageInput('');scrollToBottom();})()} /><button onClick={async()=>{if(!messageInput.trim())return;await supabase.from('general_messages').insert({user_id:user.id,content:messageInput});setMessageInput('');scrollToBottom();}} className="px-8 py-2 text-[10px] font-black uppercase text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)]" style={{ backgroundColor: 'var(--accent)' }}>Enviar</button></div>
               </motion.div>
             )}
 
-            {/* [B] CLANES (VISTA CONDICIONAL CON INSPECTOR) */}
+            {/* [B] CLANES (VISTA CONDICIONAL CON PANEL DE LÍDER) */}
             {activeTab === 'clans' && (
               <motion.div key="cl" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 p-6 md:p-12 overflow-y-auto no-scrollbar text-left text-current">
                 {inspectingClan ? (
                   <div className="space-y-8">
-                    <button onClick={() => setInspectingClan(null)} className="text-[10px] font-black uppercase opacity-40 hover:opacity-100 flex items-center gap-2"><ChevronLeft size={14}/> Volver al Directorio</button>
+                    <button onClick={() => setInspectingClan(null)} className="text-[10px] font-black uppercase opacity-40 hover:opacity-100 flex items-center gap-2"><ChevronLeft size={14}/> Volver</button>
                     <div className="p-8 border-4 border-black dark:border-white bg-black/5 space-y-6">
                        <h2 className="text-4xl font-black uppercase italic tracking-tighter">[{inspectingClan.name}]</h2>
                        <div className="space-y-4">
-                          <p className="text-[11px] font-black uppercase opacity-40 flex items-center gap-2"><Users size={16}/> Agentes Identificados:</p>
+                          <p className="text-[11px] font-black uppercase opacity-40 flex items-center gap-2"><Users size={16}/> Agentes:</p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              {inspectedMembers.map(m => (
-                               <div key={m.id} className="p-3 border-2 border-black bg-white dark:bg-black flex justify-between items-center">
+                               <div key={m.id} className="p-3 border-2 border-black bg-white dark:bg-black flex justify-between items-center text-current">
                                   <div className="flex items-center gap-3"><Avatar src={m.profiles.avatar_url} color={m.profiles.name_color} size="w-8 h-8" /><span className="font-black text-[11px] uppercase">@{m.profiles.minecraft_name}</span></div>
                                   <span className="text-[8px] font-bold uppercase opacity-30 tracking-widest">{m.role}</span>
                                </div>
                              ))}
                           </div>
                        </div>
-                       {!myClan && (
-                         <button onClick={() => joinClan(inspectingClan.id)} className="w-full py-4 text-white font-black text-xs uppercase" style={{ backgroundColor: 'var(--accent)' }}>Enviar Solicitud de Unión</button>
-                       )}
+                       {!myClan && (<button onClick={() => joinClan(inspectingClan.id)} className="w-full py-4 text-white font-black text-xs uppercase" style={{ backgroundColor: 'var(--accent)' }}>Enviar Solicitud de Unión</button>)}
                     </div>
                   </div>
                 ) : (isAdmin && isAdminView) ? (
                   <div className="space-y-12">
-                    <h2 className="text-4xl font-black italic uppercase border-b-4 border-black dark:border-white pb-6 tracking-tighter">Overlord_Clanes</h2>
+                    <h2 className="text-4xl font-black italic uppercase border-b-4 border-black dark:border-white pb-6 tracking-tighter text-current">Overlord_Clanes</h2>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 text-current">
                        {allClansAdmin.map(clan => (
                          <div key={clan.id} className="p-6 border-4 border-black dark:border-white bg-black/5 space-y-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)]">
-                            <div className="flex justify-between items-start"><div><p className="text-[10px] font-black opacity-30 uppercase">Nodo</p><h3 className="text-2xl font-black uppercase">{clan.name}</h3></div><div className="flex gap-2"><button onClick={() => adminEditClanBalance(clan.id, clan.balance)} className="p-2 border-2 border-black bg-white dark:bg-black hover:bg-black hover:text-white"><Edit3 size={14}/></button><button onClick={() => adminDeleteClan(clan.id)} className="p-2 border-2 border-black bg-red-600 text-white"><Trash2 size={14}/></button></div></div>
+                            <div className="flex justify-between items-start"><div><p className="text-[10px] font-black opacity-30 uppercase">Nodo</p><h3 className="text-2xl font-black uppercase">{clan.name}</h3></div><div className="flex gap-2"><button onClick={() => adminDeleteClan(clan.id)} className="p-2 border-2 border-black bg-red-600 text-white"><Trash2 size={14}/></button></div></div>
                             <div className="flex justify-between items-center p-3 border-2 border-black bg-white dark:bg-black font-black text-sm text-current" style={{ color: 'var(--accent)' }}><span>BALANCE:</span> <span>${clan.balance?.toLocaleString()}</span></div>
-                            <div className="space-y-2"><p className="text-[9px] font-black uppercase opacity-40 text-current text-left">Miembros:</p>{clan.clan_members?.map((m: any) => (<div key={m.profiles.id} className="flex justify-between items-center p-2 border-b border-black/10"><div className="flex items-center gap-2 text-current"><Avatar src={m.profiles.avatar_url} color={m.profiles.name_color} size="w-6 h-6" /><span className="text-[10px] font-black uppercase">@{m.profiles.minecraft_name}</span></div><button onClick={() => adminExpelMember(m.profiles.id, clan.id)} className="text-red-600"><UserX size={14}/></button></div>))}</div>
+                            <div className="space-y-2 text-current"><p className="text-[9px] font-black uppercase opacity-40 text-current text-left">Miembros:</p>{clan.clan_members?.map((m: any) => (<div key={m.profiles.id} className="flex justify-between items-center p-2 border-b border-black/10"><div className="flex items-center gap-2 text-current"><Avatar src={m.profiles.avatar_url} color={m.profiles.name_color} size="w-6 h-6" /><span className="text-[10px] font-black uppercase">@{m.profiles.minecraft_name}</span></div><button onClick={() => adminExpelMember(m.profiles.id, clan.id)} className="text-red-600"><UserX size={14}/></button></div>))}</div>
                          </div>
                        ))}
                     </div>
@@ -463,15 +478,37 @@ export default function Home() {
                 ) : (
                   <div className="space-y-12">
                     {myClan && (
-                      <div className="p-10 border-4 border-black dark:border-white bg-black/5 text-center relative shadow-[10px_10px_0px_0px_rgba(var(--accent-rgb),1)]">
-                        <p className="text-[10px] font-black uppercase mb-4 tracking-widest opacity-40 text-current">Tu Facción: {myClan.name}</p>
-                        <h2 className="text-6xl md:text-8xl font-black text-current" style={{ color: 'var(--accent)' }}>${myClan.balance?.toLocaleString()}</h2>
-                        <button onClick={leaveClan} className="mt-8 flex items-center gap-2 mx-auto text-[9px] font-black text-red-600 border-2 border-red-600 px-4 py-2 hover:bg-red-600 hover:text-white transition-all uppercase"><UserMinus size={14}/> Abandonar Nodo</button>
+                      <div className="space-y-8">
+                        <div className="p-10 border-4 border-black dark:border-white bg-black/5 text-center relative shadow-[10px_10px_0px_0px_rgba(var(--accent-rgb),1)]">
+                          <p className="text-[10px] font-black uppercase mb-4 tracking-widest opacity-40 text-current">Tu Facción: {myClan.name}</p>
+                          <h2 className="text-6xl md:text-8xl font-black text-current" style={{ color: 'var(--accent)' }}>${myClan.balance?.toLocaleString()}</h2>
+                          <button onClick={leaveClan} className="mt-8 flex items-center gap-2 mx-auto text-[9px] font-black text-red-600 border-2 border-red-600 px-4 py-2 hover:bg-red-600 hover:text-white transition-all uppercase"><UserMinus size={14}/> Abandonar Nodo</button>
+                        </div>
+                        
+                        {/* --- PANEL DE LÍDER (NUEVO) --- */}
+                        {myRole === 'leader' && pendingRequests.length > 0 && (
+                          <div className="border-4 border-black dark:border-white p-6 bg-black/5">
+                            <p className="text-[11px] font-black uppercase opacity-50 mb-4 flex items-center gap-2 text-current"><UserPlus size={14}/> Solicitudes de Acceso Pendientes:</p>
+                            <div className="space-y-4">
+                               {pendingRequests.map(req => (
+                                 <div key={req.user_id} className="p-4 border-2 border-black bg-white dark:bg-black flex justify-between items-center">
+                                    <div className="flex items-center gap-3"><Avatar src={req.profiles.avatar_url} color={req.profiles.name_color} size="w-8 h-8" /><span className="font-black text-[10px] uppercase">@{req.profiles.minecraft_name}</span></div>
+                                    <div className="flex gap-2">
+                                       <button onClick={() => acceptMember(req.user_id)} className="p-2 bg-green-500 text-white border-2 border-black"><UserCheck size={16}/></button>
+                                       <button onClick={() => rejectMember(req.user_id)} className="p-2 bg-red-500 text-white border-2 border-black"><X size={16}/></button>
+                                    </div>
+                                 </div>
+                               ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className="border-2 border-black dark:border-white divide-y-2 bg-white dark:bg-black text-left text-current">{clanMembers.map(m => (<div key={m.profiles.id} className="p-4 flex justify-between items-center text-black dark:text-white"><div className="flex items-center gap-3 text-current"><Avatar src={m.profiles.avatar_url} color={m.profiles.name_color} size="w-8 h-8" /><p className="text-[11px] font-black uppercase" style={{color: m.profiles.name_color}}>@{m.profiles.minecraft_name}</p></div><p className="text-[9px] font-bold opacity-30 uppercase">{m.role}</p></div>))}</div>
                       </div>
                     )}
                     
                     <div className="space-y-8">
-                       <p className="text-[11px] font-black uppercase opacity-40 flex items-center gap-2"><SearchCode size={16}/> Directorio de Facciones Disponibles:</p>
+                       <p className="text-[11px] font-black uppercase opacity-40 flex items-center gap-2"><SearchCode size={16}/> Directorio de Facciones:</p>
                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                           {availableClans.map(c => (
                             <div key={c.id} className="p-6 border-4 border-black dark:border-white bg-white dark:bg-black space-y-4 hover:border-[var(--accent)] transition-all group">
@@ -498,11 +535,11 @@ export default function Home() {
               </motion.div>
             )}
 
-            {/* RADIO VOZ CON MONITOREO */}
+            {/* OTROS TABS MANTENIDOS AL 100% */}
             {activeTab === 'voice' && (
               <motion.div key="vox" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col p-6 md:p-12 overflow-y-auto no-scrollbar text-current">
                 <div className="max-w-4xl mx-auto w-full space-y-10 text-left text-current">
-                  <h2 className="text-5xl font-black italic uppercase tracking-tighter border-b-4 border-black dark:border-white pb-6">Protocolo_Radio</h2>
+                  <h2 className="text-5xl font-black italic uppercase tracking-tighter border-b-4 border-black dark:border-white pb-6 text-current">Protocolo_Radio</h2>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                     <div className="space-y-8">
                        <div className="p-8 border-4 border-black dark:border-white bg-black/5 flex flex-col items-center gap-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)]">
@@ -542,7 +579,6 @@ export default function Home() {
               </motion.div>
             )}
 
-            {/* SUGERENCIAS */}
             {activeTab === 'suggestions' && (
               <motion.div key="sug" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col h-full bg-black/5 text-left text-current">
                 <div className="p-4 border-b-4 border-black dark:border-white bg-white dark:bg-black flex justify-between items-center text-current"><h2 className="text-xl font-black uppercase italic">Protocolo_Sugerencias</h2><BarChart3 size={18} className="opacity-20" /></div>
@@ -557,7 +593,7 @@ export default function Home() {
                         <p className="text-xs font-bold opacity-80 leading-relaxed text-current">{s.content}</p>
                         <div className="flex flex-col md:flex-row md:items-center gap-6 pt-4 border-t-2 border-black/5 text-current">
                            <div className="flex gap-2 text-current"><button onClick={() => voteSuggestion(s.id, 'up')} className={`flex items-center gap-2 p-2 border-2 border-black font-black text-[9px] ${s.upvotes?.includes(user?.id) ? 'bg-green-500 text-white' : ''}`}><ThumbsUp size={12}/> {upCount}</button><button onClick={() => voteSuggestion(s.id, 'down')} className={`flex items-center gap-2 p-2 border-2 border-black font-black text-[9px] ${s.downvotes?.includes(user?.id) ? 'bg-red-500 text-white' : ''}`}><ThumbsDown size={12}/> {downCount}</button></div>
-                           <div className="flex-1 space-y-2 text-current"><div className="flex justify-between items-center text-[9px] font-black uppercase text-current"><span className="opacity-40 text-current">Gusto de Comunidad</span><span style={{ color: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }}>{ratio}%</span></div><div className="h-2 bg-black/10 rounded-full overflow-hidden flex"><motion.div initial={{ width: 0 }} animate={{ width: `${ratio}%` }} className="h-full" style={{ backgroundColor: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }} /></div></div>
+                           <div className="flex-1 space-y-2 text-current"><div className="flex justify-between items-center text-[9px] font-black uppercase text-current"><span className="opacity-40 text-current">Ratio_De_Gusto</span><span style={{ color: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }}>{ratio}%</span></div><div className="h-2 bg-black/10 rounded-full overflow-hidden flex"><motion.div initial={{ width: 0 }} animate={{ width: `${ratio}%` }} className="h-full" style={{ backgroundColor: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }} /></div></div>
                         </div>
                       </div>
                     )
@@ -567,7 +603,6 @@ export default function Home() {
               </motion.div>
             )}
 
-            {/* OTROS: MODS, MENSAJES, BIZUM, AJUSTES */}
             {activeTab === 'mods' && (
               <motion.div key="mods" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 p-6 md:p-12 overflow-y-auto no-scrollbar text-left text-current">
                 <h2 className="text-4xl font-black italic uppercase border-b-4 border-black dark:border-white pb-6 mb-10 tracking-tighter">Protocolo_Mods_1.12.2</h2>
@@ -616,14 +651,14 @@ export default function Home() {
 
         <button onClick={() => setIsRankOpen(!isRankOpen)} className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-[100] bg-black text-white p-1 border-2 border-white hover:bg-orange-600 transition-all shadow-xl" style={{ right: isRankOpen ? '310px' : '0px' }}>{isRankOpen ? <ChevronRight size={16}/> : <ChevronLeft size={16}/>}</button>
 
-        {/* RANKING DERECHA (DESKTOP) */}
+        {/* RANKING DERECHA */}
         <motion.aside initial={false} animate={{ width: isRankOpen ? 320 : 0, opacity: isRankOpen ? 1 : 0 }} className="hidden md:flex border-l-4 border-black dark:border-white p-8 overflow-y-auto no-scrollbar bg-white dark:bg-black shrink-0 text-left relative overflow-hidden text-current">
           <div className="whitespace-nowrap w-full text-current text-left"><p className="text-[10px] font-black uppercase tracking-[0.4em] mb-10 opacity-30">Ranking_Global</p>
             <div className="space-y-4">{onlineUsers.slice(0, 20).map((u, i) => (<div key={u.id} className="p-5 border-2 border-black/10 transition-all group" style={i === 0 ? { borderColor: 'var(--accent)', boxShadow: '4px 4px 0px 0px rgba(var(--accent-rgb), 1)' } : {}}><div className="flex justify-between items-start text-current"><div className="flex items-center gap-3 text-current"><Avatar src={u.avatar_url} color={u.name_color} size="w-10 h-10" /><div className="flex flex-col min-w-0 text-left text-current"><span className="text-[10px] font-black uppercase truncate" style={{ color: u.name_color }}>{i + 1}. @{u.minecraft_name}</span><span className="text-[12px] font-bold mt-1" style={{ color: 'var(--accent)' }}>${u.balance?.toLocaleString()}</span></div></div></div><div className="flex gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-all"><button onClick={() => { setSelectedUser(u); setActiveTab('messages'); fetchPrivateMessages(u.id); }} className="text-[8px] font-black border-2 border-black px-3 py-1 bg-black text-white dark:bg-white dark:text-black hover:bg-orange-600 transition-all">CONTACTAR</button></div></div>))}</div>
           </div>
         </motion.aside>
 
-        {/* --- NAVEGACIÓN MÓVIL SCROLLABLE --- */}
+        {/* NAVEGACIÓN MÓVIL SCROLLABLE */}
         <nav className="flex md:hidden fixed bottom-0 left-0 right-0 h-20 border-t-4 border-black dark:border-white bg-white dark:bg-black z-[100] items-center overflow-x-auto no-scrollbar flex-nowrap px-6 gap-10">
           {[ { id: 'chat', icon: Globe }, { id: 'voice', icon: Radio }, { id: 'suggestions', icon: Lightbulb }, { id: 'mods', icon: Package }, { id: 'overview', icon: Wallet }, { id: 'transfer', icon: Send }, { id: 'clans', icon: Shield }, { id: 'messages', icon: MessageSquare }, { id: 'settings', icon: Settings } ].map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex-shrink-0 p-4 transition-all ${activeTab === item.id ? 'scale-125' : 'opacity-40'}`} style={activeTab === item.id ? { color: 'var(--accent)' } : {}}><item.icon size={22} /></button>
