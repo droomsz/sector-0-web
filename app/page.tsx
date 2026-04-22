@@ -71,7 +71,7 @@ export default function Home() {
   const [myClan, setMyClan] = useState<any>(null)
   const [myRole, setMyRole] = useState<string>('member')
   const [clanMembers, setClanMembers] = useState<any[]>([])
-  const [pendingRequests, setPendingRequests] = useState<any[]>([]) // NUEVO: Solicitudes pendientes
+  const [pendingRequests, setPendingRequests] = useState<any[]>([])
   const [allClansAdmin, setAllClansAdmin] = useState<any[]>([])
   const [availableClans, setAvailableClans] = useState<any[]>([])
   const [inspectingClan, setInspectingClan] = useState<any>(null)
@@ -135,18 +135,15 @@ export default function Home() {
   }
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('s0-theme') || 'light'; setTheme(savedTheme);
     const root = window.document.documentElement;
     theme === 'dark' ? root.classList.add('dark') : root.classList.remove('dark');
     root.style.setProperty('--accent', accentColor);
     root.style.setProperty('--accent-rgb', hexToRgb(accentColor));
   }, [theme, accentColor]);
 
-  const toggleTheme = () => setTheme(prev => (prev === 'light' ? 'dark' : 'light'))
-
   // --- [9] AUDIO ENGINE ---
   const stopSoundTest = useCallback(() => {
-    if (streamRef.current) { streamRef.current.getTracks().forEach(track => track.stop()); streamRef.current = null; }
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
     if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; }
     analyserRef.current = null; setAudioLevel(0); setIsTesting(false);
   }, []);
@@ -175,7 +172,7 @@ export default function Home() {
     } catch (e) { setIsTesting(false); }
   }
 
-  // --- [10] CLAN ENGINE (RECRUITMENT ADDED) ---
+  // --- [10] CLAN ENGINE (FIXED CREATION) ---
   const fetchGlobal = useCallback(async () => {
     const { data: online } = await supabase.from('profiles').select('*').not('minecraft_name', 'is', null).order('balance', { ascending: false });
     setOnlineUsers(online || []);
@@ -197,7 +194,6 @@ export default function Home() {
       setMyRole(membership.role);
       const { data: members } = await supabase.from('clan_members').select('*, profiles(*)').eq('clan_id', membership.clan_id);
       setClanMembers(members?.filter(m => m.status === 'accepted') || []);
-      // Solo si soy líder, buscar solicitudes pendientes
       if (membership.role === 'leader') {
         setPendingRequests(members?.filter(m => m.status === 'pending') || []);
       }
@@ -208,16 +204,55 @@ export default function Home() {
     setAvailableClans(others || []);
   }, []);
 
+  const createClan = async () => {
+    if (!newClanName.trim() || !user) return;
+    setLoading(true);
+    // 1. Crear el clan
+    const { data: clan, error: clanErr } = await supabase
+      .from('clans')
+      .insert({ name: newClanName.trim(), owner_id: user.id })
+      .select()
+      .single();
+
+    if (clanErr) {
+      alert("Error: " + clanErr.message);
+      setLoading(false);
+      return;
+    }
+
+    // 2. Auto-asignarse como líder aceptado
+    if (clan) {
+      const { error: memErr } = await supabase
+        .from('clan_members')
+        .insert({
+          clan_id: clan.id,
+          user_id: user.id,
+          status: 'accepted',
+          role: 'leader'
+        });
+
+      if (!memErr) {
+        setNewClanName('');
+        await fetchMyClanInfo(user.id);
+        await fetchAdminClans();
+        alert("Facción fundada y nodo vinculado.");
+      } else {
+        alert("Error de enlace: " + memErr.message);
+      }
+    }
+    setLoading(false);
+  }
+
   const acceptMember = async (targetUserId: string) => {
     if (!myClan) return;
     const { error } = await supabase.from('clan_members').update({ status: 'accepted' }).eq('user_id', targetUserId).eq('clan_id', myClan.id);
-    if (!error) { fetchMyClanInfo(user.id); alert("Agente integrado al nodo."); }
+    if (!error) { fetchMyClanInfo(user.id); alert("Agente aceptado."); }
   }
 
   const rejectMember = async (targetUserId: string) => {
     if (!myClan) return;
     const { error } = await supabase.from('clan_members').delete().eq('user_id', targetUserId).eq('clan_id', myClan.id);
-    if (!error) { fetchMyClanInfo(user.id); alert("Solicitud denegada."); }
+    if (!error) { fetchMyClanInfo(user.id); alert("Solicitud rechazada."); }
   }
 
   const inspectClan = async (clanId: string) => {
@@ -240,9 +275,10 @@ export default function Home() {
   useEffect(() => {
     isMounted.current = true;
     if (!user || !profile) return
-    const channel = supabase.channel('sector0_v86_core', { config: { presence: { key: user.id } } })
+    const channel = supabase.channel('sector0_v87_core', { config: { presence: { key: user.id } } })
     channel
       .on('postgres_changes', { event: '*', schema: 'public', table: 'general_messages' }, () => fetchGlobal())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'suggestions' }, () => fetchGlobal())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clans' }, () => { fetchAdminClans(); if(user) fetchMyClanInfo(user.id); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clan_members' }, () => { if(user) fetchMyClanInfo(user.id); })
       .on('presence', { event: 'sync' }, () => {
@@ -268,16 +304,21 @@ export default function Home() {
     await supabase.from('clan_members').delete().eq('user_id', userId).eq('clan_id', clanId); fetchAdminClans();
   }
 
+  const adminEditClanBalance = async (clanId: string, current: number) => {
+    const val = prompt("MODIFICAR CAPITAL:", current.toString());
+    if (val) { await supabase.from('clans').update({ balance: parseFloat(val) }).eq('id', clanId); fetchAdminClans(); }
+  }
+
   const handleSyncIdentity = async (e: any) => {
     e.preventDefault(); const nick = e.target.nick.value;
     const { error } = await supabase.from('profiles').upsert({ id: user.id, minecraft_name: nick, balance: 0, name_color: '#ff6600' });
-    if (!error) { await supabase.from('general_messages').insert({ user_id: user.id, content: `⚡ [PROTOCOLO] @${nick} en red.` }); window.location.reload(); }
+    if (!error) { await supabase.from('general_messages').insert({ user_id: user.id, content: `⚡ [SISTEMA] Agente @${nick} en red.` }); window.location.reload(); }
   }
 
   const handleTransfer = async (e: any) => {
     e.preventDefault(); setLoading(true);
     const { error } = await supabase.rpc('transfer_by_minecraft', { target_name: form.mcName, amount_to_send: parseFloat(form.amount), sender_id: user.id, transfer_concept: form.concept });
-    if (!error) { if(user) loadData(user); setActiveTab('overview'); alert("Sincronización completa."); } else alert(error.message);
+    if (!error) { if(user) loadData(user); setActiveTab('overview'); alert("Transferencia exitosa."); } else alert(error.message);
     setLoading(false);
   }
 
@@ -293,12 +334,6 @@ export default function Home() {
     if (type === 'up') { if (up.includes(user.id)) return; up.push(user.id); down = down.filter((u:string) => u !== user.id); } 
     else { if (down.includes(user.id)) return; down.push(user.id); up = up.filter((u:string) => u !== user.id); }
     await supabase.from('suggestions').update({ upvotes: up, downvotes: down }).eq('id', id); fetchGlobal();
-  }
-
-  const createClan = async () => {
-    if (!newClanName.trim()) return;
-    const { data: clan } = await supabase.from('clans').insert({ name: newClanName.trim(), owner_id: user.id }).select().single();
-    if (clan) { await supabase.from('clan_members').insert({ clan_id: clan.id, user_id: user.id, status: 'accepted', role: 'leader' }); window.location.reload(); }
   }
 
   const joinClan = async (clanId: string) => {
@@ -359,14 +394,18 @@ export default function Home() {
 
   if (loading && !user) return <div className="h-screen flex items-center justify-center font-black bg-white dark:bg-black text-[10px] uppercase tracking-[1em]">Sincronizando_Terminal...</div>
 
-  // --- VISTA ACCESO (CORREGIDA V84) ---
+  // --- VISTA ACCESO (FIX CONTRASTE) ---
   if (!user) return (
     <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center p-4">
       <AnimatePresence mode="wait">
         {viewDossier ? (
           <motion.div key="dos" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-3xl w-full border-4 border-black dark:border-white p-8 md:p-16 bg-white dark:bg-black text-black dark:text-white shadow-[20px_20px_0px_0px_rgba(var(--accent-rgb),1)]">
             <div className="flex items-center justify-center gap-4 mb-10 text-current"><AlertCircle style={{ color: 'var(--accent)' }} size={40} /><h3 className="text-3xl md:text-5xl font-black italic uppercase leading-none tracking-tighter">Protocolo_Sector_0</h3></div>
-            <div className="space-y-6 font-bold text-[12px] md:text-[14px] uppercase border-l-4 pl-6 md:pl-10 mb-12 py-6 bg-black/5 dark:bg-white/5 text-left leading-relaxed text-black dark:text-white" style={{ borderColor: 'var(--accent)' }}><p>— TERMINAL DE CONTROL FINANCIERO Y FACCIONES ACTIVA.</p><p>— LA IDENTIDAD DEBE SER VINCULADA PARA OPERAR EN RED.</p><p>— CUALQUIER ACCIÓN QUEDA REGISTRADA EN EL NODO CENTRAL.</p></div>
+            <div className="space-y-6 font-bold text-[12px] md:text-[14px] uppercase border-l-4 pl-6 md:pl-10 mb-12 py-6 bg-black/5 dark:bg-white/5 text-left leading-relaxed text-black dark:text-white" style={{ borderColor: 'var(--accent)' }}>
+              <p>— TERMINAL DE CONTROL FINANCIERO Y FACCIONES ACTIVA.</p>
+              <p>— LA IDENTIDAD DEBE SER VINCULADA PARA OPERAR EN RED.</p>
+              <p>— CUALQUIER ACCIÓN QUEDA REGISTRADA EN EL NODO CENTRAL.</p>
+            </div>
             <button onClick={() => setViewDossier(false)} className="w-full md:w-auto px-16 py-6 font-black text-sm uppercase transition-all shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)]" style={{ backgroundColor: 'var(--accent)', color: 'white' }}>ACEPTAR PROTOCOLO</button>
           </motion.div>
         ) : (
@@ -381,11 +420,11 @@ export default function Home() {
   )
 
   if (!profile?.minecraft_name) return (
-    <div className="fixed inset-0 bg-white dark:bg-black flex items-center justify-center p-4"><div className="text-center space-y-10 w-full max-w-sm border-4 border-black dark:border-white p-10 bg-white dark:bg-black shadow-[15px_15px_0px_0px_rgba(var(--accent-rgb), 1)]"><h2 className="text-3xl font-black italic uppercase">Identidad</h2><form onSubmit={handleSyncIdentity} className="space-y-8"><input name="nick" required placeholder="TU_NICK_MC" className="w-full bg-transparent border-2 border-black dark:border-white p-5 font-black uppercase text-center outline-none focus:border-[var(--accent)] text-black dark:text-white" /><button type="submit" className="w-full py-6 text-white font-black text-xs uppercase" style={{ backgroundColor: 'var(--accent)' }}>Sincronizar</button></form></div></div>
+    <div className="fixed inset-0 bg-white dark:bg-black flex items-center justify-center p-4"><div className="text-center space-y-10 w-full max-w-sm border-4 border-black dark:border-white p-10 bg-white dark:bg-black text-black dark:text-white shadow-[15px_15px_0px_0px_rgba(var(--accent-rgb), 1)]"><h2 className="text-3xl font-black italic uppercase">Identidad</h2><form onSubmit={handleSyncIdentity} className="space-y-8"><input name="nick" required placeholder="TU_NICK_MC" className="w-full bg-transparent border-2 border-black dark:border-white p-5 font-black uppercase text-center outline-none focus:border-[var(--accent)] text-black dark:text-white" /><button type="submit" className="w-full py-6 text-white font-black text-xs uppercase" style={{ backgroundColor: 'var(--accent)' }}>Sincronizar</button></form></div></div>
   )
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center p-0 md:p-10 font-sans text-black dark:text-white transition-colors duration-300 overflow-hidden">
+    <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center p-0 md:p-10 font-sans text-black dark:text-white transition-colors duration-300 overflow-hidden text-current">
       
       <div className="w-full max-w-[1440px] h-full md:h-[85vh] md:border-4 md:border-black md:dark:border-white bg-white dark:bg-black flex flex-col md:flex-row overflow-hidden relative shadow-[25px_25px_0px_0px_rgba(var(--accent-rgb), 1)]">
         
@@ -416,7 +455,6 @@ export default function Home() {
         <main className="flex-1 flex flex-col bg-white dark:bg-black overflow-hidden relative mb-20 md:mb-0">
           <AnimatePresence mode="wait">
             
-            {/* [A] FRECUENCIA */}
             {activeTab === 'chat' && (
               <motion.div key="chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col h-full relative text-current">
                 <div className="p-3 border-b-4 border-black dark:border-white bg-black/5 flex items-center justify-between text-current"><div className="flex items-center gap-3"><span className="text-[8px] font-black uppercase opacity-40">Agentes:</span><div className="flex -space-x-2">{activeAgents.map((a, i) => (<div key={i} className="w-7 h-7 border-2 border-black overflow-hidden bg-white shrink-0"><img src={a.avatar} className="w-full h-full object-cover" alt="ag" /></div>))}</div></div></div>
@@ -428,7 +466,7 @@ export default function Home() {
                       <div key={i} className={`flex gap-4 items-start ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                         <Avatar src={m.profiles?.avatar_url} color={m.profiles?.name_color} size="w-9 h-9" />
                         <div className={`flex flex-col gap-1 max-w-[70%] ${isMe ? 'items-end' : 'items-start'}`}>
-                          <div className="flex items-center gap-3"><span className="text-[8px] font-black uppercase opacity-40" style={{ color: m.profiles?.name_color }}>@{m.profiles?.minecraft_name}</span>{canDelete && <button onClick={() => deleteEntry(m.id)} className="text-red-600 opacity-20 hover:opacity-100 transition-all"><Trash2 size={12}/></button>}</div>
+                          <div className="flex items-center gap-3"><span className="text-[8px] font-black uppercase opacity-40 text-current" style={{ color: m.profiles?.name_color }}>@{m.profiles?.minecraft_name}</span>{canDelete && <button onClick={() => deleteEntry(m.id)} className="text-red-600 opacity-20 hover:opacity-100 transition-all"><Trash2 size={12}/></button>}</div>
                           <div className={`p-4 border-2 border-black dark:border-white text-[11px] font-bold ${isMe ? 'bg-black text-white dark:bg-white dark:text-black border-transparent shadow-[4px_4px_0px_0px_rgba(var(--accent-rgb),1)]' : 'bg-white dark:bg-black text-left text-black dark:text-white'}`}>{m.content}</div>
                         </div>
                       </div>
@@ -440,7 +478,6 @@ export default function Home() {
               </motion.div>
             )}
 
-            {/* [B] CLANES (VISTA CONDICIONAL CON PANEL DE LÍDER) */}
             {activeTab === 'clans' && (
               <motion.div key="cl" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 p-6 md:p-12 overflow-y-auto no-scrollbar text-left text-current">
                 {inspectingClan ? (
@@ -459,18 +496,17 @@ export default function Home() {
                              ))}
                           </div>
                        </div>
-                       {!myClan && (<button onClick={() => joinClan(inspectingClan.id)} className="w-full py-4 text-white font-black text-xs uppercase" style={{ backgroundColor: 'var(--accent)' }}>Enviar Solicitud de Unión</button>)}
                     </div>
                   </div>
                 ) : (isAdmin && isAdminView) ? (
                   <div className="space-y-12">
-                    <h2 className="text-4xl font-black italic uppercase border-b-4 border-black dark:border-white pb-6 tracking-tighter text-current">Overlord_Clanes</h2>
+                    <h2 className="text-4xl font-black italic uppercase border-b-4 border-black dark:border-white pb-6 tracking-tighter">Overlord_Clanes</h2>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 text-current">
                        {allClansAdmin.map(clan => (
                          <div key={clan.id} className="p-6 border-4 border-black dark:border-white bg-black/5 space-y-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)]">
-                            <div className="flex justify-between items-start"><div><p className="text-[10px] font-black opacity-30 uppercase">Nodo</p><h3 className="text-2xl font-black uppercase">{clan.name}</h3></div><div className="flex gap-2"><button onClick={() => adminDeleteClan(clan.id)} className="p-2 border-2 border-black bg-red-600 text-white"><Trash2 size={14}/></button></div></div>
-                            <div className="flex justify-between items-center p-3 border-2 border-black bg-white dark:bg-black font-black text-sm text-current" style={{ color: 'var(--accent)' }}><span>BALANCE:</span> <span>${clan.balance?.toLocaleString()}</span></div>
-                            <div className="space-y-2 text-current"><p className="text-[9px] font-black uppercase opacity-40 text-current text-left">Miembros:</p>{clan.clan_members?.map((m: any) => (<div key={m.profiles.id} className="flex justify-between items-center p-2 border-b border-black/10"><div className="flex items-center gap-2 text-current"><Avatar src={m.profiles.avatar_url} color={m.profiles.name_color} size="w-6 h-6" /><span className="text-[10px] font-black uppercase">@{m.profiles.minecraft_name}</span></div><button onClick={() => adminExpelMember(m.profiles.id, clan.id)} className="text-red-600"><UserX size={14}/></button></div>))}</div>
+                            <div className="flex justify-between items-start"><div><p className="text-[10px] font-black opacity-30 uppercase">Nodo</p><h3 className="text-2xl font-black uppercase">{clan.name}</h3></div><button onClick={() => adminDeleteClan(clan.id)} className="p-2 border-2 border-black bg-red-600 text-white"><Trash2 size={14}/></button></div>
+                            <div className="flex justify-between items-center p-3 border-2 border-black bg-white dark:bg-black font-black text-sm" style={{ color: 'var(--accent)' }}><span>BALANCE:</span> <span>${clan.balance?.toLocaleString()}</span></div>
+                            <div className="space-y-2"><p className="text-[9px] font-black uppercase opacity-40 text-left">Miembros:</p>{clan.clan_members?.map((m: any) => (<div key={m.profiles.id} className="flex justify-between items-center p-2 border-b border-black/10"><div className="flex items-center gap-2"><Avatar src={m.profiles.avatar_url} color={m.profiles.name_color} size="w-6 h-6" /><span className="text-[10px] font-black uppercase">@{m.profiles.minecraft_name}</span></div><button onClick={() => adminExpelMember(m.profiles.id, clan.id)} className="text-red-600"><UserX size={14}/></button></div>))}</div>
                          </div>
                        ))}
                     </div>
@@ -480,33 +516,26 @@ export default function Home() {
                     {myClan && (
                       <div className="space-y-8">
                         <div className="p-10 border-4 border-black dark:border-white bg-black/5 text-center relative shadow-[10px_10px_0px_0px_rgba(var(--accent-rgb),1)]">
-                          <p className="text-[10px] font-black uppercase mb-4 tracking-widest opacity-40 text-current">Tu Facción: {myClan.name}</p>
-                          <h2 className="text-6xl md:text-8xl font-black text-current" style={{ color: 'var(--accent)' }}>${myClan.balance?.toLocaleString()}</h2>
+                          <p className="text-[10px] font-black uppercase mb-4 tracking-widest opacity-40">Facción: {myClan.name}</p>
+                          <h2 className="text-6xl md:text-8xl font-black" style={{ color: 'var(--accent)' }}>${myClan.balance?.toLocaleString()}</h2>
                           <button onClick={leaveClan} className="mt-8 flex items-center gap-2 mx-auto text-[9px] font-black text-red-600 border-2 border-red-600 px-4 py-2 hover:bg-red-600 hover:text-white transition-all uppercase"><UserMinus size={14}/> Abandonar Nodo</button>
                         </div>
-                        
-                        {/* --- PANEL DE LÍDER (NUEVO) --- */}
                         {myRole === 'leader' && pendingRequests.length > 0 && (
                           <div className="border-4 border-black dark:border-white p-6 bg-black/5">
-                            <p className="text-[11px] font-black uppercase opacity-50 mb-4 flex items-center gap-2 text-current"><UserPlus size={14}/> Solicitudes de Acceso Pendientes:</p>
+                            <p className="text-[11px] font-black uppercase opacity-50 mb-4 flex items-center gap-2"><UserPlus size={14}/> Solicitudes:</p>
                             <div className="space-y-4">
                                {pendingRequests.map(req => (
                                  <div key={req.user_id} className="p-4 border-2 border-black bg-white dark:bg-black flex justify-between items-center">
                                     <div className="flex items-center gap-3"><Avatar src={req.profiles.avatar_url} color={req.profiles.name_color} size="w-8 h-8" /><span className="font-black text-[10px] uppercase">@{req.profiles.minecraft_name}</span></div>
-                                    <div className="flex gap-2">
-                                       <button onClick={() => acceptMember(req.user_id)} className="p-2 bg-green-500 text-white border-2 border-black"><UserCheck size={16}/></button>
-                                       <button onClick={() => rejectMember(req.user_id)} className="p-2 bg-red-500 text-white border-2 border-black"><X size={16}/></button>
-                                    </div>
+                                    <div className="flex gap-2"><button onClick={() => acceptMember(req.user_id)} className="p-2 bg-green-500 text-white border-2 border-black"><UserCheck size={16}/></button><button onClick={() => rejectMember(req.user_id)} className="p-2 bg-red-500 text-white border-2 border-black"><X size={16}/></button></div>
                                  </div>
                                ))}
                             </div>
                           </div>
                         )}
-                        
-                        <div className="border-2 border-black dark:border-white divide-y-2 bg-white dark:bg-black text-left text-current">{clanMembers.map(m => (<div key={m.profiles.id} className="p-4 flex justify-between items-center text-black dark:text-white"><div className="flex items-center gap-3 text-current"><Avatar src={m.profiles.avatar_url} color={m.profiles.name_color} size="w-8 h-8" /><p className="text-[11px] font-black uppercase" style={{color: m.profiles.name_color}}>@{m.profiles.minecraft_name}</p></div><p className="text-[9px] font-bold opacity-30 uppercase">{m.role}</p></div>))}</div>
+                        <div className="border-2 border-black dark:border-white divide-y-2 bg-white dark:bg-black">{clanMembers.map(m => (<div key={m.profiles.id} className="p-4 flex justify-between items-center"><div className="flex items-center gap-3"><Avatar src={m.profiles.avatar_url} color={m.profiles.name_color} size="w-8 h-8" /><p className="text-[11px] font-black uppercase" style={{color: m.profiles.name_color}}>@{m.profiles.minecraft_name}</p></div><p className="text-[9px] font-bold opacity-30 uppercase">{m.role}</p></div>))}</div>
                       </div>
                     )}
-                    
                     <div className="space-y-8">
                        <p className="text-[11px] font-black uppercase opacity-40 flex items-center gap-2"><SearchCode size={16}/> Directorio de Facciones:</p>
                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -522,7 +551,7 @@ export default function Home() {
                        </div>
                        {!myClan && (
                          <div className="pt-12 border-t-4 border-black/10 text-center">
-                            <p className="text-[10px] font-black opacity-30 uppercase mb-6">Registrar Nueva Facción</p>
+                            <p className="text-[10px] font-black opacity-30 uppercase mb-6">Registrar Nodo de Facción</p>
                             <div className="max-w-md mx-auto flex gap-2">
                                <input placeholder="NOMBRE..." className="flex-1 p-4 border-4 border-black bg-transparent font-black uppercase text-xs" value={newClanName} onChange={e=>setNewClanName(e.target.value)} />
                                <button onClick={createClan} className="px-6 py-4 text-white font-black text-xs uppercase" style={{backgroundColor:'var(--accent)'}}>Fundar</button>
@@ -535,43 +564,32 @@ export default function Home() {
               </motion.div>
             )}
 
-            {/* OTROS TABS MANTENIDOS AL 100% */}
+            {/* RADIO, SUGERENCIAS, MODS, BIZUM (MANTENIDOS) */}
             {activeTab === 'voice' && (
               <motion.div key="vox" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col p-6 md:p-12 overflow-y-auto no-scrollbar text-current">
-                <div className="max-w-4xl mx-auto w-full space-y-10 text-left text-current">
-                  <h2 className="text-5xl font-black italic uppercase tracking-tighter border-b-4 border-black dark:border-white pb-6 text-current">Protocolo_Radio</h2>
+                <div className="max-w-4xl mx-auto w-full space-y-10 text-left">
+                  <h2 className="text-5xl font-black italic uppercase tracking-tighter border-b-4 border-black dark:border-white pb-6">Protocolo_Radio</h2>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                     <div className="space-y-8">
                        <div className="p-8 border-4 border-black dark:border-white bg-black/5 flex flex-col items-center gap-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)]">
                           <div className={`w-24 h-24 border-4 border-black flex items-center justify-center ${isInVoice ? 'bg-[var(--accent)] text-white shadow-[0_0_20px_rgba(var(--accent-rgb),0.5)]' : 'bg-white text-black'}`}>{isInVoice ? <Wifi className="animate-pulse" /> : <MicOff className="opacity-20" />}</div>
                           <div className="w-full flex gap-2">
                              <button onClick={toggleVoice} className={`flex-1 py-4 font-black text-xs uppercase shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] ${isInVoice ? 'bg-red-600 text-white' : 'bg-black text-white'}`}>{isInVoice ? "Desconectar" : "Conectar"}</button>
-                             {isInVoice && (
-                               <>
-                                 <button onClick={() => setIsMicMuted(!isMicMuted)} className={`p-4 border-4 border-black ${isMicMuted ? 'bg-yellow-500' : 'bg-white text-black'}`}>{isMicMuted ? <MicOff size={18}/> : <Mic size={18}/>}</button>
-                                 <button onClick={() => {setIsDeafened(!isDeafened); if(!isDeafened) setIsMicMuted(true);}} className={`p-4 border-4 border-black ${isDeafened ? 'bg-red-500' : 'bg-white text-black'}`}>{isDeafened ? <EarOff size={18}/> : <Headphones size={18}/>}</button>
-                               </>
-                             )}
+                             {isInVoice && (<><button onClick={() => setIsMicMuted(!isMicMuted)} className={`p-4 border-4 border-black ${isMicMuted ? 'bg-yellow-500' : 'bg-white text-black'}`}>{isMicMuted ? <MicOff size={18}/> : <Mic size={18}/>}</button><button onClick={() => {setIsDeafened(!isDeafened); if(!isDeafened) setIsMicMuted(true);}} className={`p-4 border-4 border-black ${isDeafened ? 'bg-red-500' : 'bg-white text-black'}`}>{isDeafened ? <EarOff size={18}/> : <Headphones size={18}/>}</button></>)}
                           </div>
                        </div>
                        <div className="space-y-2">{voiceAgents.map((agent, i) => (
                          <div key={i} className="p-4 border-2 border-black dark:border-white bg-white dark:bg-black space-y-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)]">
                            <div className="flex justify-between items-center text-current"><div className="flex items-center gap-3"><Avatar src={agent.avatar} color={agent.color} size="w-8 h-8" isTalking={!agent.is_muted && !isDeafened} /><span className="font-black text-[11px] uppercase" style={{ color: agent.color }}>@{agent.nick}</span></div><div className="flex items-center gap-2">{agent.is_deaf ? <EarOff size={12} className="text-red-600"/> : agent.is_muted ? <MicOff size={12} className="opacity-30"/> : <Volume2 size={12} className="text-green-500"/>}</div></div>
-                           {agent.id !== user?.id && (<div className="flex items-center gap-3"><Volume1 size={12} className="opacity-40 text-current"/><input type="range" min="0" max="200" value={userVolumes[agent.id] || 100} onChange={(e)=>setUserVolumes({...userVolumes, [agent.id]: parseInt(e.target.value)})} className="flex-1 h-1 bg-black/10 appearance-none cursor-pointer accent-[var(--accent)]" /><span className="text-[9px] font-black w-8 text-current">{userVolumes[agent.id] || 100}%</span></div>)}
+                           {agent.id !== user?.id && (<div className="flex items-center gap-3"><Volume1 size={12} className="opacity-40"/><input type="range" min="0" max="200" value={userVolumes[agent.id] || 100} onChange={(e)=>setUserVolumes({...userVolumes, [agent.id]: parseInt(e.target.value)})} className="flex-1 h-1 bg-black/10 appearance-none cursor-pointer accent-[var(--accent)]" /><span className="text-[9px] font-black w-8">{userVolumes[agent.id] || 100}%</span></div>)}
                          </div>
                        ))}</div>
                     </div>
                     <div className="space-y-8 p-8 border-4 border-black dark:border-white bg-black/5 text-left text-current">
-                       <h3 className="font-black uppercase text-xs flex items-center gap-2 text-current"><Settings2 size={16}/> Calibración_Audio</h3>
+                       <h3 className="font-black uppercase text-xs flex items-center gap-2 text-current"><Settings2 size={16}/> Hardware</h3>
                        <div className="space-y-6">
                           <div className="space-y-2 text-current"><label className="text-[9px] font-black uppercase opacity-40 block">Micrófono</label><select value={selectedInput} onChange={(e) => setSelectedInput(e.target.value)} className="w-full p-4 bg-white dark:bg-black border-2 border-black font-black text-[10px] uppercase outline-none text-current">{devices.filter(d => d.kind === 'audioinput').map(d => (<option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0,5)}`}</option>))}</select></div>
-                          <div className="pt-4 space-y-4 border-t-2 border-black/10 text-center">
-                             <div className="flex gap-2">
-                                <button onClick={startSoundTest} className={`flex-1 py-2 border-2 border-black font-black text-[9px] uppercase ${isTesting ? 'bg-green-500 text-white' : 'hover:bg-black hover:text-white'} transition-all`}>{isTesting ? "MODO ESCUCHA" : "INICIAR MONITOREO"}</button>
-                                {isTesting && <button onClick={stopSoundTest} className="p-2 border-2 border-black bg-red-600 text-white"><VolumeX size={16}/></button>}
-                             </div>
-                             <div className="h-6 border-2 border-black bg-black/20 px-1 flex items-center"><motion.div className="h-3" style={{ width: `${Math.min(audioLevel * 1.5, 100)}%`, backgroundColor: 'var(--accent)' }} /></div>
-                          </div>
+                          <div className="pt-4 space-y-4 border-t-2 border-black/10 text-center text-current"><div className="flex gap-2"><button onClick={startSoundTest} className={`flex-1 py-2 border-2 border-black font-black text-[9px] uppercase ${isTesting ? 'bg-green-500 text-white' : 'hover:bg-black hover:text-white'} transition-all`}>{isTesting ? "MODO ESCUCHA" : "INICIAR MONITOREO"}</button>{isTesting && <button onClick={stopSoundTest} className="p-2 border-2 border-black bg-red-600 text-white"><VolumeX size={16}/></button>}</div><div className="h-6 border-2 border-black bg-black/20 px-1 flex items-center text-current"><motion.div className="h-3" style={{ width: `${Math.min(audioLevel * 1.5, 100)}%`, backgroundColor: 'var(--accent)' }} /></div></div>
                        </div>
                     </div>
                   </div>
@@ -593,7 +611,7 @@ export default function Home() {
                         <p className="text-xs font-bold opacity-80 leading-relaxed text-current">{s.content}</p>
                         <div className="flex flex-col md:flex-row md:items-center gap-6 pt-4 border-t-2 border-black/5 text-current">
                            <div className="flex gap-2 text-current"><button onClick={() => voteSuggestion(s.id, 'up')} className={`flex items-center gap-2 p-2 border-2 border-black font-black text-[9px] ${s.upvotes?.includes(user?.id) ? 'bg-green-500 text-white' : ''}`}><ThumbsUp size={12}/> {upCount}</button><button onClick={() => voteSuggestion(s.id, 'down')} className={`flex items-center gap-2 p-2 border-2 border-black font-black text-[9px] ${s.downvotes?.includes(user?.id) ? 'bg-red-500 text-white' : ''}`}><ThumbsDown size={12}/> {downCount}</button></div>
-                           <div className="flex-1 space-y-2 text-current"><div className="flex justify-between items-center text-[9px] font-black uppercase text-current"><span className="opacity-40 text-current">Ratio_De_Gusto</span><span style={{ color: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }}>{ratio}%</span></div><div className="h-2 bg-black/10 rounded-full overflow-hidden flex"><motion.div initial={{ width: 0 }} animate={{ width: `${ratio}%` }} className="h-full" style={{ backgroundColor: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }} /></div></div>
+                           <div className="flex-1 space-y-2 text-current"><div className="flex justify-between items-center text-[9px] font-black uppercase text-current"><span className="opacity-40 text-current">Aceptación</span><span style={{ color: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }}>{ratio}%</span></div><div className="h-2 bg-black/10 rounded-full overflow-hidden flex"><motion.div initial={{ width: 0 }} animate={{ width: `${ratio}%` }} className="h-full" style={{ backgroundColor: ratio > 60 ? '#2ecc71' : ratio > 30 ? '#f39c12' : '#e74c3c' }} /></div></div>
                         </div>
                       </div>
                     )
@@ -623,7 +641,7 @@ export default function Home() {
             {activeTab === 'messages' && (
               <motion.div key="ms" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col h-full bg-black/5 text-current text-left">
                 {!selectedUser ? (
-                  <div className="flex-1 flex flex-col p-6 md:p-10 overflow-y-auto no-scrollbar text-current"><p className="text-[10px] font-black uppercase tracking-[0.4em] mb-10 opacity-30 text-center">Canales_Privados</p><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-current">{onlineUsers.filter(u => u.id !== user?.id).map(u => (<div key={u.id} className="p-5 border-2 border-black dark:border-white bg-white dark:bg-black hover:border-[var(--accent)] transition-all group"><div className="flex items-center gap-4 mb-4 text-left"><Avatar src={u.avatar_url} color={u.name_color} size="w-10 h-10" /><div className="flex flex-col min-w-0 text-current text-left"><span className="text-[11px] font-black uppercase truncate" style={{color: u.name_color}}>@{u.minecraft_name}</span><span className="text-[8px] font-bold opacity-30 uppercase">ID: {u.id.substring(0,8)}</span></div></div><button onClick={() => { setSelectedUser(u); fetchPrivateMessages(u.id); }} className="w-full py-2 border-2 border-black dark:border-white text-[9px] font-black uppercase hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all">Abrir Canal</button></div>))}</div></div>
+                  <div className="flex-1 flex flex-col p-6 md:p-10 overflow-y-auto no-scrollbar text-current"><p className="text-[10px] font-black uppercase tracking-[0.4em] mb-10 opacity-30 text-center">Canales_Privados</p><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-current">{onlineUsers.filter(u => u.id !== user?.id).map(u => (<div key={u.id} className="p-5 border-2 border-black dark:border-white bg-white dark:bg-black hover:border-[var(--accent)] transition-all group text-current"><div className="flex items-center gap-4 mb-4 text-left"><Avatar src={u.avatar_url} color={u.name_color} size="w-10 h-10" /><div className="flex flex-col min-w-0 text-current text-left"><span className="text-[11px] font-black uppercase truncate" style={{color: u.name_color}}>@{u.minecraft_name}</span><span className="text-[8px] font-bold opacity-30 uppercase text-current">ID: {u.id.substring(0,8)}</span></div></div><button onClick={() => { setSelectedUser(u); fetchPrivateMessages(u.id); }} className="w-full py-2 border-2 border-black dark:border-white text-[9px] font-black uppercase hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all">Abrir Canal</button></div>))}</div></div>
                 ) : (
                   <div className="flex-1 flex flex-col h-full bg-white dark:bg-black text-current">
                     <div className="p-4 border-b-4 border-black dark:border-white flex justify-between items-center text-black dark:text-white"><div className="flex items-center gap-3 text-current"><Avatar src={selectedUser.avatar_url} color={selectedUser.name_color} size="w-8 h-8" /><span className="font-black uppercase text-[10px]" style={{color: selectedUser.name_color}}>@{selectedUser.minecraft_name} [SEGURIZADO]</span></div><button onClick={() => setSelectedUser(null)} className="text-[9px] font-black opacity-30 hover:opacity-100 underline">VOLVER</button></div>
@@ -653,8 +671,8 @@ export default function Home() {
 
         {/* RANKING DERECHA */}
         <motion.aside initial={false} animate={{ width: isRankOpen ? 320 : 0, opacity: isRankOpen ? 1 : 0 }} className="hidden md:flex border-l-4 border-black dark:border-white p-8 overflow-y-auto no-scrollbar bg-white dark:bg-black shrink-0 text-left relative overflow-hidden text-current">
-          <div className="whitespace-nowrap w-full text-current text-left"><p className="text-[10px] font-black uppercase tracking-[0.4em] mb-10 opacity-30">Ranking_Global</p>
-            <div className="space-y-4">{onlineUsers.slice(0, 20).map((u, i) => (<div key={u.id} className="p-5 border-2 border-black/10 transition-all group" style={i === 0 ? { borderColor: 'var(--accent)', boxShadow: '4px 4px 0px 0px rgba(var(--accent-rgb), 1)' } : {}}><div className="flex justify-between items-start text-current"><div className="flex items-center gap-3 text-current"><Avatar src={u.avatar_url} color={u.name_color} size="w-10 h-10" /><div className="flex flex-col min-w-0 text-left text-current"><span className="text-[10px] font-black uppercase truncate" style={{ color: u.name_color }}>{i + 1}. @{u.minecraft_name}</span><span className="text-[12px] font-bold mt-1" style={{ color: 'var(--accent)' }}>${u.balance?.toLocaleString()}</span></div></div></div><div className="flex gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-all"><button onClick={() => { setSelectedUser(u); setActiveTab('messages'); fetchPrivateMessages(u.id); }} className="text-[8px] font-black border-2 border-black px-3 py-1 bg-black text-white dark:bg-white dark:text-black hover:bg-orange-600 transition-all">CONTACTAR</button></div></div>))}</div>
+          <div className="whitespace-nowrap w-full text-current text-left"><p className="text-[10px] font-black uppercase tracking-[0.4em] mb-10 opacity-30 text-current">Ranking_Global</p>
+            <div className="space-y-4 text-current">{onlineUsers.slice(0, 20).map((u, i) => (<div key={u.id} className="p-5 border-2 border-black/10 transition-all group text-current" style={i === 0 ? { borderColor: 'var(--accent)', boxShadow: '4px 4px 0px 0px rgba(var(--accent-rgb), 1)' } : {}}><div className="flex justify-between items-start text-current"><div className="flex items-center gap-3 text-current"><Avatar src={u.avatar_url} color={u.name_color} size="w-10 h-10" /><div className="flex flex-col min-w-0 text-left text-current"><span className="text-[10px] font-black uppercase truncate text-current" style={{ color: u.name_color }}>{i + 1}. @{u.minecraft_name}</span><span className="text-[12px] font-bold mt-1 text-current" style={{ color: 'var(--accent)' }}>${u.balance?.toLocaleString()}</span></div></div></div><div className="flex gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-all text-current"><button onClick={() => { setSelectedUser(u); setActiveTab('messages'); fetchPrivateMessages(u.id); }} className="text-[8px] font-black border-2 border-black px-3 py-1 bg-black text-white dark:bg-white dark:text-black hover:bg-orange-600 transition-all">CONTACTAR</button></div></div>))}</div>
           </div>
         </motion.aside>
 
