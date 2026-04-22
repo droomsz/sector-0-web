@@ -346,9 +346,9 @@ export default function Home() {
           <motion.div key="dos" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-3xl w-full border-4 border-black dark:border-white p-8 md:p-16 bg-white dark:bg-black shadow-[20px_20px_0px_0px_rgba(var(--accent-rgb),1)]">
             <div className="flex items-center justify-center gap-4 mb-10 text-current"><AlertCircle style={{ color: 'var(--accent)' }} size={40} /><h3 className="text-3xl md:text-5xl font-black italic uppercase leading-none tracking-tighter">Protocolo_Sector_0</h3></div>
             <div className="space-y-6 font-bold text-[12px] md:text-[14px] uppercase border-l-4 pl-6 md:pl-10 mb-12 py-4 bg-black/5 dark:bg-white/5 text-left text-current leading-relaxed" style={{ borderColor: 'var(--accent)' }}>
-              <p>— TERMINAL DE CONTROL FINANCIERO Y FACCIONES ACTIVA.</p>
+              <p>— Servidor de minecraft con mods.</p>
               <p>— LA IDENTIDAD DEBE SER VINCULADA PARA OPERAR EN RED.</p>
-              <p>— CUALQUIER ACCIÓN QUEDA REGISTRADA EN EL NODO CENTRAL.</p>
+              <p>— Al entrar al protocolo tendras un chat para resolver tus dudas.</p>
             </div>
             <button onClick={() => setViewDossier(false)} className="w-full md:w-auto px-16 py-6 font-black text-sm uppercase transition-all shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)]" style={{ backgroundColor: 'var(--accent)', color: 'white' }}>ACEPTAR PROTOCOLO</button>
           </motion.div>
